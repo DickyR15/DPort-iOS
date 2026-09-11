@@ -1,5 +1,6 @@
 name: Build LiveContainer Nightly Widget Fix v3 (Pinned SideStore)
 
+# Manual-only build: LiveContainer 2026-09-09 + SideStore pinned from 3.8.0
 on:
   workflow_dispatch:
 
