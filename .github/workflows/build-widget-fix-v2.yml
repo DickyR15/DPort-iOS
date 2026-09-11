@@ -1,0 +1,96 @@
+name: Build LiveContainer Nightly Widget Fix v2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build LiveContainer 2026-09-09 + Widget Fix
+    runs-on: macos-latest
+    env:
+      scheme: LiveContainer
+      archive_path: archive
+    steps:
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.2'
+
+      - name: Checkout LiveContainer 2026-09-09
+        uses: actions/checkout@v6
+        with:
+          repository: LiveContainer/LiveContainer
+          ref: 3afa9eb9a53625e9b8bd8b932e5785fd716ad5ae
+          path: LiveContainer
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Apply Widget dependency fix
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/build_github.sh')
+          s = p.read_text()
+          marker = 'mv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\n'
+          fix = 'if [ -d ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Frameworks ]; then\n  cp -R ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Frameworks ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/\nfi\n'
+          if marker not in s:
+              raise SystemExit('AltWidgetExtension marker not found')
+          if fix not in s:
+              s = s.replace(marker, marker + fix)
+          p.write_text(s)
+          PY
+          grep -n -A5 -B2 'AltWidgetExtension' .github/build_github.sh
+
+      - name: Set build inputs
+        working-directory: LiveContainer
+        id: build_inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          if ls -d *.xcworkspace >/dev/null 2>&1; then
+            echo 'filetype_parameter=workspace' >> "$GITHUB_OUTPUT"
+            echo "file_to_build=$(ls -d *.xcworkspace | head -1)" >> "$GITHUB_OUTPUT"
+          else
+            echo 'filetype_parameter=project' >> "$GITHUB_OUTPUT"
+            echo "file_to_build=$(ls -d *.xcodeproj | head -1)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Archive
+        working-directory: LiveContainer
+        env:
+          scheme: ${{ steps.build_inputs.outputs.scheme }}
+          filetype_parameter: ${{ steps.build_inputs.outputs.filetype_parameter }}
+          file_to_build: ${{ steps.build_inputs.outputs.file_to_build }}
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -archivePath "$archive_path" \
+            -scheme "$scheme" \
+            -"$filetype_parameter" "$file_to_build" \
+            -sdk iphoneos \
+            -arch arm64 \
+            -configuration Release | xcpretty
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Package IPA
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh .github/build_github.sh
+
+      - name: Upload IPA artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiveContainer-Nightly-Widget-Fix
+          path: |
+            LiveContainer/*.ipa
+            LiveContainer/*.ipa.zip
+          if-no-files-found: error
