@@ -1,16 +1,119 @@
-name: LiveContainer V4 Clean Test
+name: LiveContainer V4 Pinned SideStore Build
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  test:
+  build:
+    name: LiveContainer 2026-09-09 + SideStore from 3.8.0
     runs-on: macos-latest
+    env:
+      scheme: LiveContainer
+      archive_path: archive
+      PINNED_IPA: https://github.com/LiveContainer/LiveContainer/releases/download/3.8.0/LiveContainer%2BSideStore.ipa
     steps:
-      - name: Test macOS runner
+      - name: Select Xcode 26.2
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.2'
+
+      - name: Checkout LiveContainer 2026-09-09
+        uses: actions/checkout@v4
+        with:
+          repository: LiveContainer/LiveContainer
+          ref: 3afa9eb9a53625e9b8bd8b932e5785fd716ad5ae
+          path: LiveContainer
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Prepare pinned SideStore framework from 3.8.0
+        working-directory: LiveContainer
+        shell: bash
         run: |
-          set -e
-          sw_vers
-          xcodebuild -version
-          echo "RUNNER_OK"
+          set -euo pipefail
+          rm -rf ../pinned
+          mkdir -p ../pinned/extracted
+          curl -fL --retry 3 "$PINNED_IPA" -o ../pinned/LiveContainer-3.8.0-SideStore.ipa
+          unzip -q ../pinned/LiveContainer-3.8.0-SideStore.ipa -d ../pinned/extracted
+          test -d ../pinned/extracted/Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
+          cp -R ../pinned/extracted/Payload/LiveContainer.app/Frameworks/SideStoreApp.framework ../pinned/SideStoreApp.framework
+
+      - name: Patch build script to use pinned SideStore
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/build_github.sh')
+          s = p.read_text()
+          start = s.index('# download SideStore')
+          end = s.index('# copy intents')
+          replacement = '''# SideStore pinned from LiveContainer 3.8.0 stable
+rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
+cp -R ../pinned/SideStoreApp.framework ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
+ldid -S"" ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore
+cp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/
+
+'''
+          p.write_text(s[:start] + replacement + s[end:])
+          PY
+          grep -n -A8 'SideStore pinned' .github/build_github.sh
+
+      - name: Set build inputs
+        working-directory: LiveContainer
+        id: build_inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          if ls -d *.xcworkspace >/dev/null 2>&1; then
+            echo 'filetype_parameter=workspace' >> "$GITHUB_OUTPUT"
+            echo "file_to_build=$(ls -d *.xcworkspace | head -1)" >> "$GITHUB_OUTPUT"
+          else
+            echo 'filetype_parameter=project' >> "$GITHUB_OUTPUT"
+            echo "file_to_build=$(ls -d *.xcodeproj | head -1)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Archive with Xcode 26.2
+        working-directory: LiveContainer
+        env:
+          scheme: ${{ steps.build_inputs.outputs.scheme }}
+          filetype_parameter: ${{ steps.build_inputs.outputs.filetype_parameter }}
+          file_to_build: ${{ steps.build_inputs.outputs.file_to_build }}
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -archivePath "$archive_path" \
+            -scheme "$scheme" \
+            -"$filetype_parameter" "$file_to_build" \
+            -sdk iphoneos \
+            -arch arm64 \
+            -configuration Release | xcpretty
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Package IPA
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh .github/build_github.sh
+
+      - name: Verify pinned SideStore
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
+          test -f Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension
+          echo "Pinned SideStore framework present"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Info.plist || true
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiveContainer-Nightly-Widget-Fix-v4
+          path: LiveContainer/*.ipa
+          if-no-files-found: error
