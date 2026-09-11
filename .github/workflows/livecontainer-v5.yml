@@ -21,6 +21,7 @@ jobs:
           xcodebuild -version
 
       - name: Clone LiveContainer
+        working-directory: .
         shell: bash
         run: |
           set -euo pipefail
@@ -95,22 +96,23 @@ jobs:
             -sdk iphoneos \
             -arch arm64 \
             -configuration Release | xcpretty
+          test -d "$ARCHIVE_PATH.xcarchive/Products/Applications/LiveContainer.app"
 
       - name: Package IPA
         working-directory: LiveContainer
         shell: bash
         run: |
           set -euo pipefail
-          sh .github/build_github.sh
+          archive_path="$ARCHIVE_PATH" scheme="$SCHEME" sh .github/build_github.sh
 
       - name: Verify output
         working-directory: LiveContainer
         shell: bash
         run: |
           set -euo pipefail
-          ls -lh *.ipa
-          test -f LiveContainer+SideStore.ipa
-          unzip -l LiveContainer+SideStore.ipa | grep -q 'LiveWidgetExtension.appex/LiveWidgetExtension'
+          test -f "${SCHEME}+SideStore.ipa"
+          ls -lh "${SCHEME}+SideStore.ipa"
+          unzip -l "${SCHEME}+SideStore.ipa" | grep -q 'LiveWidgetExtension.appex/LiveWidgetExtension'
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
