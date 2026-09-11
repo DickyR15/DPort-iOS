@@ -1,0 +1,120 @@
+name: LiveContainer V5 Clean Build
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    env:
+      SCHEME: LiveContainer
+      ARCHIVE_PATH: archive
+      LC_COMMIT: 3afa9eb9a53625e9b8bd8b932e5785fd716ad5ae
+      PINNED_IPA: https://github.com/LiveContainer/LiveContainer/releases/download/3.8.0/LiveContainer%2BSideStore.ipa
+    steps:
+      - name: Verify runner and Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          sw_vers
+          xcodebuild -version
+
+      - name: Clone LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf LiveContainer
+          git clone --filter=blob:none --no-checkout https://github.com/LiveContainer/LiveContainer.git LiveContainer
+          cd LiveContainer
+          git fetch --depth 1 origin "$LC_COMMIT"
+          git checkout --detach "$LC_COMMIT"
+          git submodule update --init --recursive
+          git rev-parse HEAD
+
+      - name: Prepare pinned SideStore framework
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ../pinned
+          mkdir -p ../pinned/extracted
+          curl -fL --retry 3 "$PINNED_IPA" -o ../pinned/LiveContainer-3.8.0-SideStore.ipa
+          unzip -q ../pinned/LiveContainer-3.8.0-SideStore.ipa -d ../pinned/extracted
+          test -d ../pinned/extracted/Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
+          cp -R ../pinned/extracted/Payload/LiveContainer.app/Frameworks/SideStoreApp.framework ../pinned/SideStoreApp.framework
+
+      - name: Select Xcode 26.2 when available
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d /Applications/Xcode_26.2.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+          fi
+          xcodebuild -version
+
+      - name: Patch build script to use pinned SideStore
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/build_github.sh')
+          s = p.read_text()
+          start = s.index('# download SideStore')
+          end = s.index('# copy intents')
+          replacement = '''# SideStore pinned from LiveContainer 3.8.0 stable\nrm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework\ncp -R ../pinned/SideStoreApp.framework ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework\n\nbrew install ldid\nldid -S"" ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\ncp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/\n\n'''
+          p.write_text(s[:start] + replacement + s[end:])
+          PY
+
+      - name: Detect Xcode project
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
+          if ls -d *.xcworkspace >/dev/null 2>&1; then
+            echo "PROJECT_FLAG=-workspace" >> "$GITHUB_ENV"
+            echo "PROJECT_PATH=$(ls -d *.xcworkspace | head -1)" >> "$GITHUB_ENV"
+          else
+            echo "PROJECT_FLAG=-project" >> "$GITHUB_ENV"
+            echo "PROJECT_PATH=$(ls -d *.xcodeproj | head -1)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Archive
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -archivePath "$ARCHIVE_PATH" \
+            -scheme "$SCHEME" \
+            "$PROJECT_FLAG" "$PROJECT_PATH" \
+            -sdk iphoneos \
+            -arch arm64 \
+            -configuration Release | xcpretty
+
+      - name: Package IPA
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh .github/build_github.sh
+
+      - name: Verify output
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -lh *.ipa
+          test -f LiveContainer+SideStore.ipa
+          unzip -l LiveContainer+SideStore.ipa | grep -q 'LiveWidgetExtension.appex/LiveWidgetExtension'
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiveContainer-Nightly-Widget-Fix-v5
+          path: LiveContainer/LiveContainer+SideStore.ipa
+          if-no-files-found: error
