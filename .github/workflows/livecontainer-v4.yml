@@ -1,0 +1,16 @@
+name: LiveContainer V4 Clean Test
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - name: Test macOS runner
+        run: |
+          set -e
+          sw_vers
+          xcodebuild -version
+          echo "RUNNER_OK"
