@@ -1,7 +1,10 @@
 name: Build LiveContainer Nightly Widget Fix v3 (Pinned SideStore)
 
+# Temporary push trigger to launch one build; remove after the run starts.
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
@@ -37,6 +40,7 @@ jobs:
           test -d ../pinned/extracted/Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
           rm -rf ../pinned/SideStoreApp.framework
           cp -R ../pinned/extracted/Payload/LiveContainer.app/Frameworks/SideStoreApp.framework ../pinned/SideStoreApp.framework
+          echo "Pinned SideStore framework prepared"
 
       - name: Replace Nightly embedded SideStore with stable 3.8.0 SideStore
         working-directory: LiveContainer
@@ -105,6 +109,7 @@ cp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideS
         run: |
           set -euo pipefail
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Info.plist || true
+          strings Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore | grep -m1 '0.6.4-' || true
 
       - name: Upload IPA artifacts
         uses: actions/upload-artifact@v4
