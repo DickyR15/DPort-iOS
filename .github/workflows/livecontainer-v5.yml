@@ -21,7 +21,6 @@ jobs:
           xcodebuild -version
 
       - name: Clone LiveContainer
-        working-directory: .
         shell: bash
         run: |
           set -euo pipefail
@@ -33,7 +32,7 @@ jobs:
           git submodule update --init --recursive
           git rev-parse HEAD
 
-      - name: Prepare pinned SideStore framework
+      - name: Prepare pinned SideStore and working widget
         working-directory: LiveContainer
         shell: bash
         run: |
@@ -45,6 +44,11 @@ jobs:
           test -d ../pinned/extracted/Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
           cp -R ../pinned/extracted/Payload/LiveContainer.app/Frameworks/SideStoreApp.framework ../pinned/SideStoreApp.framework
 
+          widget="$(find ../pinned/extracted/Payload/LiveContainer.app -type d \( -name 'LiveWidgetExtension.appex' -o -name 'AltWidgetExtension.appex' \) -print -quit || true)"
+          echo "Stable widget candidate: ${widget:-NONE}"
+          test -n "$widget"
+          cp -R "$widget" ../pinned/widget.appex
+
       - name: Select Xcode 26.2 when available
         working-directory: LiveContainer
         shell: bash
@@ -55,7 +59,7 @@ jobs:
           fi
           xcodebuild -version
 
-      - name: Patch build script to use pinned SideStore
+      - name: Patch build script to use pinned SideStore and stable widget
         working-directory: LiveContainer
         shell: bash
         run: |
@@ -64,10 +68,36 @@ jobs:
           from pathlib import Path
           p = Path('.github/build_github.sh')
           s = p.read_text()
+
           start = s.index('# download SideStore')
           end = s.index('# copy intents')
-          replacement = '''# SideStore pinned from LiveContainer 3.8.0 stable\nrm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework\ncp -R ../pinned/SideStoreApp.framework ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework\n\nbrew install ldid\nldid -S"" ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\ncp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/\n\n'''
-          p.write_text(s[:start] + replacement + s[end:])
+          replacement = '''# SideStore pinned from LiveContainer 3.8.0 stable
+          rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
+          cp -R ../pinned/SideStoreApp.framework ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
+
+          brew install ldid
+          ldid -S"" ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore
+          cp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/
+
+          # The stable 3.8.0 IPA already contains the widget that works on iOS.
+          rm -rf ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex
+          cp -R ../pinned/widget.appex ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex
+
+          '''
+          s = s[:start] + replacement + s[end:]
+
+          alt_start = s.index('# AltWidgetExtension')
+          sign_start = s.index('# Sign')
+          widget_block = '''# Widget extension
+          if [ -f ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension ]; then
+            mv ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension
+          fi
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.kdt.livecontainer.LiveWidget" ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.kdt.livecontainer.LiveWidget" ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable LiveWidgetExtension" ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string LiveWidgetExtension" ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist
+
+          '''
+          s = s[:alt_start] + widget_block + s[sign_start:]
+          p.write_text(s)
           PY
 
       - name: Detect Xcode project
@@ -111,8 +141,9 @@ jobs:
         run: |
           set -euo pipefail
           test -f "${SCHEME}+SideStore.ipa"
-          ls -lh "${SCHEME}+SideStore.ipa"
           unzip -l "${SCHEME}+SideStore.ipa" | grep -q 'LiveWidgetExtension.appex/LiveWidgetExtension'
+          echo "Widget extension verified"
+          ls -lh "${SCHEME}+SideStore.ipa"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
