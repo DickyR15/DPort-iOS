@@ -1,6 +1,8 @@
 name: Build LiveContainer + SideStore GSA Final v2
 
 on:
+  push:
+    branches: [ gsa-sidesign-build ]
   workflow_dispatch:
 
 jobs:
