@@ -1,0 +1,70 @@
+name: Build SideStore with GSA transport fix
+
+on:
+  push:
+    branches: [gsa-sidesign-build]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - name: Checkout helper repo
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: brew install ldid xcbeautify
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1.6.0
+        with:
+          xcode-version: "26.4"
+
+      - name: Clone SideStore 9b015d1f
+        run: |
+          git clone https://github.com/SideStore/SideStore.git SideStore
+          cd SideStore
+          git fetch --depth=1 origin 9b015d1f0fb0bb6e8cb32e218222bdf511e002b0
+          git checkout --detach 9b015d1f0fb0bb6e8cb32e218222bdf511e002b0
+          git submodule update --init --recursive
+
+      - name: Pin SideSign to PR #1 implementation
+        working-directory: SideStore
+        run: |
+          cd Dependencies/SideSign
+          git remote add patch https://github.com/BananaOnGitHub/SideSign.git
+          git fetch patch 67481d4cd82ccc0d6d03a49bbb64474b162d29d3
+          git checkout --detach 67481d4cd82ccc0d6d03a49bbb64474b162d29d3
+          echo "SideSign commit: $(git rev-parse HEAD)"
+
+      - name: Verify GSA transport patch is present
+        working-directory: SideStore
+        run: |
+          test -f Dependencies/SideSign/Sources/DeveloperPortal/GrandSlamTransport.swift
+          grep -q 'GrandSlamTransport.data' Dependencies/SideSign/Sources/DeveloperPortal/Authentication.swift
+          echo "GrandSlamTransport patch verified"
+
+      - name: Build SideStore
+        working-directory: SideStore
+        run: |
+          set -o pipefail
+          NSUnbufferedIO=YES make -B build 2>&1 | tee build.log | xcbeautify --renderer github-actions
+          make fakesign 2>&1 | tee -a build.log
+          make ipa 2>&1 | tee -a build.log
+          ls -lh SideStore.ipa
+
+      - name: Upload patched SideStore IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: SideStore-9b015d1f-GSA-PR1
+          path: |
+            SideStore/SideStore.ipa
+            SideStore/build.log
+          if-no-files-found: error
+
+      - name: Upload patched SideSign source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: SideSign-GSA-PR1-source
+          path: SideStore/Dependencies/SideSign
+          if-no-files-found: error
