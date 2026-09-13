@@ -3,8 +3,6 @@ name: Build SideStore with GSA transport fix
 on:
   push:
     branches: [gsa-sidesign-build]
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 jobs:
@@ -42,15 +40,69 @@ jobs:
           new = '''        let (data, response): (Data, URLResponse)\n        do {\n            if let operation = requestParameters["o"] as? String,\n               ["init", "complete", "apptokens"].contains(operation) {\n                (data, response) = try await GrandSlamTransport.data(for: request)\n            } else {\n                (data, response) = try await session.data(for: request)\n            }\n        } catch {\n'''
           if old not in s:
               raise SystemExit('Authentication.swift target block not found')
-          s = s.replace(old, new, 1)
-          auth.write_text(s)
-
-          transport = Path('Dependencies/SideSign/Sources/DeveloperPortal/GrandSlamTransport.swift')
-          transport.write_text(r'''import Foundation\n#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\n\n/// Transport for the three GrandSlam authentication exchanges, not general portal requests.\nenum GrandSlamTransport {\n    static func data(\n        for request: URLRequest,\n        makeSession: @Sendable (URLSessionConfiguration) -> URLSession = { URLSession(configuration: $0) },\n        sleep: @Sendable (UInt64) async throws -> Void = { try await Task.sleep(nanoseconds: $0) }\n    ) async throws -> (Data, URLResponse) {\n        let retryDelays: [UInt64] = [1, 2, 4, 8]\n        var attempt = 0\n\n        while true {\n            try Task.checkCancellation()\n            // Apple's GSA edge can pin a persistent connection to a failing backend.\n            // Each attempt needs its own connection pool, including the initial request.\n            let configuration = URLSessionConfiguration.ephemeral\n            configuration.urlCache = nil\n            configuration.httpCookieStorage = nil\n            configuration.urlCredentialStorage = nil\n            configuration.requestCachePolicy = .reloadIgnoringLocalCacheData\n            let session = makeSession(configuration)\n            let result: (Data, URLResponse)\n            do {\n                defer { session.finishTasksAndInvalidate() }\n                result = try await session.data(for: request)\n            }\n            try Task.checkCancellation()\n\n            guard let response = result.1 as? HTTPURLResponse,\n                  (500...599).contains(response.statusCode) else {\n                return result\n            }\n\n            guard attempt < retryDelays.count else {\n                throw NSError(domain: NSURLErrorDomain, code: NSURLErrorBadServerResponse, userInfo: [\n                    NSLocalizedDescriptionKey: "Apple's authentication server returned HTTP \\(response.statusCode) after \\(attempt + 1) attempts. Please try again later.",\n                    "HTTPStatusCode": response.statusCode,\n                    "ContentType": response.value(forHTTPHeaderField: "Content-Type") ?? "unknown"\n                ])\n            }\n\n            try await sleep(retryDelays[attempt] * 1_000_000_000)\n            attempt += 1\n        }\n    }\n}\n''')
+          auth.write_text(s.replace(old, new, 1))
           PY
+
+          cat > Dependencies/SideSign/Sources/DeveloperPortal/GrandSlamTransport.swift <<'SWIFT'
+          import Foundation
+          #if canImport(FoundationNetworking)
+          import FoundationNetworking
+          #endif
+
+          /// Transport for the three GrandSlam authentication exchanges, not general portal requests.
+          enum GrandSlamTransport {
+              static func data(
+                  for request: URLRequest,
+                  makeSession: @Sendable (URLSessionConfiguration) -> URLSession = { URLSession(configuration: $0) },
+                  sleep: @Sendable (UInt64) async throws -> Void = { try await Task.sleep(nanoseconds: $0) }
+              ) async throws -> (Data, URLResponse) {
+                  let retryDelays: [UInt64] = [1, 2, 4, 8]
+                  var attempt = 0
+
+                  while true {
+                      try Task.checkCancellation()
+
+                      let configuration = URLSessionConfiguration.ephemeral
+                      configuration.urlCache = nil
+                      configuration.httpCookieStorage = nil
+                      configuration.urlCredentialStorage = nil
+                      configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+
+                      let session = makeSession(configuration)
+                      let result: (Data, URLResponse)
+                      do {
+                          defer { session.finishTasksAndInvalidate() }
+                          result = try await session.data(for: request)
+                      }
+
+                      try Task.checkCancellation()
+
+                      guard let response = result.1 as? HTTPURLResponse,
+                            (500...599).contains(response.statusCode) else {
+                          return result
+                      }
+
+                      guard attempt < retryDelays.count else {
+                          throw NSError(
+                              domain: NSURLErrorDomain,
+                              code: NSURLErrorBadServerResponse,
+                              userInfo: [
+                                  NSLocalizedDescriptionKey: "Apple's authentication server returned HTTP \(response.statusCode) after \(attempt + 1) attempts. Please try again later.",
+                                  "HTTPStatusCode": response.statusCode,
+                                  "ContentType": response.value(forHTTPHeaderField: "Content-Type") ?? "unknown"
+                              ]
+                          )
+                      }
+
+                      try await sleep(retryDelays[attempt] * 1_000_000_000)
+                      attempt += 1
+                  }
+              }
+          }
+          SWIFT
+
           grep -n "GrandSlamTransport.data" Dependencies/SideSign/Sources/DeveloperPortal/Authentication.swift
-          test -f Dependencies/SideSign/Sources/DeveloperPortal/GrandSlamTransport.swift
-          echo "Patched current SideSign submodule in-place"
+          sed -n '1,120p' Dependencies/SideSign/Sources/DeveloperPortal/GrandSlamTransport.swift
 
       - name: Build SideStore
         working-directory: SideStore
@@ -64,7 +116,7 @@ jobs:
       - name: Upload patched SideStore IPA
         uses: actions/upload-artifact@v4
         with:
-          name: SideStore-9b015d1f-GSA-PR1-current-SideSign
+          name: SideStore-9b015d1f-GSA-transport-fixed
           path: |
             SideStore/SideStore.ipa
             SideStore/build.log
@@ -73,6 +125,6 @@ jobs:
       - name: Upload patched SideSign source snapshot
         uses: actions/upload-artifact@v4
         with:
-          name: SideSign-GSA-PR1-current-SideSign-source
+          name: SideSign-GSA-transport-fixed-source
           path: SideStore/Dependencies/SideSign
           if-no-files-found: error
