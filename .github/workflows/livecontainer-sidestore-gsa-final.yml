@@ -156,7 +156,7 @@ jobs:
             -project LiveContainer.xcodeproj \
             -sdk iphoneos \
             -arch arm64 \
-            -configuration Release | xcpretty && exit ${PIPESTATUS[0]}
+            -configuration Release | xcbeautify --renderer github-actions && exit ${PIPESTATUS[0]}
           test -d "$LC_ARCHIVE.xcarchive/Products/Applications/LiveContainer.app"
 
       - name: Patch official LiveContainer packaging script to use patched SideStore
