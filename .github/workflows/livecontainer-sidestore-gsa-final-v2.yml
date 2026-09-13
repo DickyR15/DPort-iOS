@@ -150,17 +150,23 @@ jobs:
           start = s.index('# download SideStore')
           end = s.index('# copy intents')
           replacement = '''# SideStore 9b015d1f with GSA transport fix\ncd tmp\ncp "$GITHUB_WORKSPACE/SideStore/SideStore.ipa" SideStore.ipa\nunzip -oq SideStore.ipa\ncd ..\n\n# SideStore\nmv ./tmp/Payload/SideStore.app ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework\n./dylibify ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib\nrm ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\nmv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\nldid -S"" ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\ncp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/\n'''
-          p.write_text(s[:start] + replacement + s[end:])
+          s = s[:start] + replacement + s[end:]
+          s = s.replace('find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +', 'find Payload -type d -name "_CodeSignature" -exec rm -r {} +')
+          p.write_text(s)
           PY
       - name: Package final LiveContainer + SideStore IPA
         working-directory: LiveContainer
         shell: bash
         run: |
           set -euo pipefail
-          wget https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
+          wget -q https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
           chmod +x dylibify
           archive_path="$LC_ARCHIVE" scheme="$LC_SCHEME" GITHUB_WORKSPACE="$GITHUB_WORKSPACE" sh .github/build_github.sh
+          test -s "${LC_SCHEME}+SideStore.ipa"
+          mv "${LC_SCHEME}+SideStore.ipa" "$GITHUB_WORKSPACE/$FINAL_NAME"
           test -s "$GITHUB_WORKSPACE/$FINAL_NAME"
+          unzip -tq "$GITHUB_WORKSPACE/$FINAL_NAME"
+          ls -lh "$GITHUB_WORKSPACE/$FINAL_NAME"
       - name: Verify final bundle and widget
         shell: bash
         run: |
