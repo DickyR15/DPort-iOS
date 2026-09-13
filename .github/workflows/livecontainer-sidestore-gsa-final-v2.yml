@@ -1,8 +1,6 @@
 name: Build LiveContainer + SideStore GSA Final v2
 
 on:
-  push:
-    branches: [ gsa-sidesign-build ]
   workflow_dispatch:
 
 jobs:
@@ -19,15 +17,12 @@ jobs:
     steps:
       - name: Checkout helper repository
         uses: actions/checkout@v4
-
       - name: Install build tools
         run: brew install ldid xcbeautify
-
       - name: Select Xcode 26.4 for SideStore
         uses: maxim-lobanov/setup-xcode@v1.6.0
         with:
           xcode-version: "26.4"
-
       - name: Clone SideStore 9b015d1f
         shell: bash
         run: |
@@ -40,7 +35,6 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SS_COMMIT"
           echo "SideStore: $(git rev-parse HEAD)"
           echo "SideSign: $(git -C Dependencies/SideSign rev-parse HEAD)"
-
       - name: Apply GSA transport fix to current SideSign
         working-directory: SideStore
         shell: bash
@@ -56,13 +50,11 @@ jobs:
               raise SystemExit('Authentication.swift target block not found')
           auth.write_text(text.replace(old, new, 1))
           PY
-
           cat > Dependencies/SideSign/Sources/DeveloperPortal/GrandSlamTransport.swift <<'SWIFT'
           import Foundation
           #if canImport(FoundationNetworking)
           import FoundationNetworking
           #endif
-
           enum GrandSlamTransport {
               static func data(
                   for request: URLRequest,
@@ -71,7 +63,6 @@ jobs:
               ) async throws -> (Data, URLResponse) {
                   let retryDelays: [UInt64] = [1, 2, 4, 8]
                   var attempt = 0
-
                   while true {
                       try Task.checkCancellation()
                       let configuration = URLSessionConfiguration.ephemeral
@@ -107,9 +98,7 @@ jobs:
               }
           }
           SWIFT
-
           grep -n "GrandSlamTransport.data" Dependencies/SideSign/Sources/DeveloperPortal/Authentication.swift
-
       - name: Build patched SideStore IPA
         working-directory: SideStore
         shell: bash
@@ -121,12 +110,10 @@ jobs:
           test -s SideStore.ipa
           unzip -tq SideStore.ipa
           ls -lh SideStore.ipa
-
       - name: Select Xcode 26.2 for LiveContainer
         uses: maxim-lobanov/setup-xcode@v1.6.0
         with:
           xcode-version: "26.2"
-
       - name: Clone LiveContainer e55609b
         shell: bash
         run: |
@@ -138,7 +125,6 @@ jobs:
           git submodule update --init --recursive
           test "$(git rev-parse HEAD)" = "$LC_COMMIT"
           echo "LiveContainer: $(git rev-parse HEAD)"
-
       - name: Archive LiveContainer e55609b
         working-directory: LiveContainer
         shell: bash
@@ -152,7 +138,6 @@ jobs:
             -arch arm64 \
             -configuration Release | xcbeautify --renderer github-actions && exit ${PIPESTATUS[0]}
           test -d "$LC_ARCHIVE.xcarchive/Products/Applications/LiveContainer.app"
-
       - name: Patch official LiveContainer packaging script to use patched SideStore
         working-directory: LiveContainer
         shell: bash
@@ -167,7 +152,6 @@ jobs:
           replacement = '''# SideStore 9b015d1f with GSA transport fix\ncd tmp\ncp "$GITHUB_WORKSPACE/SideStore/SideStore.ipa" SideStore.ipa\nunzip -oq SideStore.ipa\ncd ..\n\n# SideStore\nmv ./tmp/Payload/SideStore.app ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework\n./dylibify ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib\nrm ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\nmv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\nldid -S"" ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\ncp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/\n'''
           p.write_text(s[:start] + replacement + s[end:])
           PY
-
       - name: Package final LiveContainer + SideStore IPA
         working-directory: LiveContainer
         shell: bash
@@ -177,7 +161,6 @@ jobs:
           chmod +x dylibify
           archive_path="$LC_ARCHIVE" scheme="$LC_SCHEME" GITHUB_WORKSPACE="$GITHUB_WORKSPACE" sh .github/build_github.sh
           test -s "$GITHUB_WORKSPACE/$FINAL_NAME"
-
       - name: Verify final bundle and widget
         shell: bash
         run: |
@@ -189,25 +172,12 @@ jobs:
           test -f verify-final/Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore
           test -d verify-final/Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex
           test -f verify-final/Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension
-          echo "LiveContainer bundle id:"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' verify-final/Payload/LiveContainer.app/Info.plist
-          echo "Widget bundle id:"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' verify-final/Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist
-          echo "Widget executable:"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' verify-final/Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist
-          echo "Final IPA:"
           ls -lh "$FINAL_NAME"
-
       - name: Upload final integrated IPA
         uses: actions/upload-artifact@v4
         with:
           name: LiveContainer_SideStore_LC-e55609b_SS-9b015d1f
           path: LiveContainer_SideStore_LC-e55609b_SS-9b015d1f.ipa
-          if-no-files-found: error
-
-      - name: Upload build logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: LiveContainer_SideStore_LC-e55609b_SS-9b015d1f-build-logs
-          path: SideStore/build.log
           if-no-files-found: error
