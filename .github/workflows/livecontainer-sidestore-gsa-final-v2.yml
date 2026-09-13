@@ -19,12 +19,15 @@ jobs:
     steps:
       - name: Checkout helper repository
         uses: actions/checkout@v4
+
       - name: Install build tools
         run: brew install ldid xcbeautify
+
       - name: Select Xcode 26.4 for SideStore
         uses: maxim-lobanov/setup-xcode@v1.6.0
         with:
           xcode-version: "26.4"
+
       - name: Clone SideStore 9b015d1f
         shell: bash
         run: |
@@ -37,70 +40,30 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SS_COMMIT"
           echo "SideStore: $(git rev-parse HEAD)"
           echo "SideSign: $(git -C Dependencies/SideSign rev-parse HEAD)"
-      - name: Apply GSA transport fix to current SideSign
+
+      - name: Apply actual GSA 503 client-info fix
         working-directory: SideStore
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          auth = Path('Dependencies/SideSign/Sources/DeveloperPortal/Authentication.swift')
-          text = auth.read_text()
-          old = '''        let (data, response): (Data, URLResponse)\n        do {\n            (data, response) = try await session.data(for: request)\n        } catch {\n'''
-          new = '''        let (data, response): (Data, URLResponse)\n        do {\n            if let operation = requestParameters["o"] as? String,\n               ["init", "complete", "apptokens"].contains(operation) {\n                (data, response) = try await GrandSlamTransport.data(for: request)\n            } else {\n                (data, response) = try await session.data(for: request)\n            }\n        } catch {\n'''
-          if old not in text:
-              raise SystemExit('Authentication.swift target block not found')
-          auth.write_text(text.replace(old, new, 1))
+          p = Path('Dependencies/SideSign/Sources/DeveloperPortal/Authentication.swift')
+          s = p.read_text()
+          marker = '        let headers: [String: String] = [\n'
+          replacement = '''        // Apple began rejecting X-MMe-Client-Info values that identify Xcode.\n        // Report the GrandSlam client as the system akd daemon instead.\n        let patchedClientInfo = anisetteData.clientInfo.replacingOccurrences(\n            of: #"com\\.apple\\.dt\\.Xcode/[^) >]+"#,\n            with: "com.apple.akd/1.0",\n            options: .regularExpression\n        )\n\n        let headers: [String: String] = [\n'''
+          if marker not in s:
+              raise SystemExit('Authentication.swift headers marker not found')
+          s = s.replace(marker, replacement, 1)
+          old = '            "X-MMe-Client-Info": anisetteData.clientInfo,\n'
+          new = '            "X-MMe-Client-Info": patchedClientInfo,\n'
+          if old not in s:
+              raise SystemExit('X-MMe-Client-Info header target not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
           PY
-          cat > Dependencies/SideSign/Sources/DeveloperPortal/GrandSlamTransport.swift <<'SWIFT'
-          import Foundation
-          #if canImport(FoundationNetworking)
-          import FoundationNetworking
-          #endif
-          enum GrandSlamTransport {
-              static func data(
-                  for request: URLRequest,
-                  makeSession: @Sendable (URLSessionConfiguration) -> URLSession = { URLSession(configuration: $0) },
-                  sleep: @Sendable (UInt64) async throws -> Void = { try await Task.sleep(nanoseconds: $0) }
-              ) async throws -> (Data, URLResponse) {
-                  let retryDelays: [UInt64] = [1, 2, 4, 8]
-                  var attempt = 0
-                  while true {
-                      try Task.checkCancellation()
-                      let configuration = URLSessionConfiguration.ephemeral
-                      configuration.urlCache = nil
-                      configuration.httpCookieStorage = nil
-                      configuration.urlCredentialStorage = nil
-                      configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-                      let session = makeSession(configuration)
-                      let result: (Data, URLResponse)
-                      do {
-                          defer { session.finishTasksAndInvalidate() }
-                          result = try await session.data(for: request)
-                      }
-                      try Task.checkCancellation()
-                      guard let response = result.1 as? HTTPURLResponse,
-                            (500...599).contains(response.statusCode) else {
-                          return result
-                      }
-                      guard attempt < retryDelays.count else {
-                          throw NSError(
-                              domain: NSURLErrorDomain,
-                              code: NSURLErrorBadServerResponse,
-                              userInfo: [
-                                  NSLocalizedDescriptionKey: "Apple's authentication server returned HTTP \(response.statusCode) after \(attempt + 1) attempts.",
-                                  "HTTPStatusCode": response.statusCode,
-                                  "ContentType": response.value(forHTTPHeaderField: "Content-Type") ?? "unknown"
-                              ]
-                          )
-                      }
-                      try await sleep(retryDelays[attempt] * 1_000_000_000)
-                      attempt += 1
-                  }
-              }
-          }
-          SWIFT
-          grep -n "GrandSlamTransport.data" Dependencies/SideSign/Sources/DeveloperPortal/Authentication.swift
+          grep -n -A10 -B3 'patchedClientInfo' Dependencies/SideSign/Sources/DeveloperPortal/Authentication.swift
+
       - name: Build patched SideStore IPA
         working-directory: SideStore
         shell: bash
@@ -112,10 +75,12 @@ jobs:
           test -s SideStore.ipa
           unzip -tq SideStore.ipa
           ls -lh SideStore.ipa
+
       - name: Select Xcode 26.2 for LiveContainer
         uses: maxim-lobanov/setup-xcode@v1.6.0
         with:
           xcode-version: "26.2"
+
       - name: Clone LiveContainer e55609b
         shell: bash
         run: |
@@ -127,6 +92,21 @@ jobs:
           git submodule update --init --recursive
           test "$(git rev-parse HEAD)" = "$LC_COMMIT"
           echo "LiveContainer: $(git rev-parse HEAD)"
+
+      - name: Prepare known-working 7-day widget
+        working-directory: LiveContainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ../stable-widget ../stable-widget-extracted
+          mkdir -p ../stable-widget-extracted
+          curl -fL --retry 3 'https://github.com/LiveContainer/LiveContainer/releases/download/3.8.0/LiveContainer%2BSideStore.ipa' -o ../stable-widget.ipa
+          unzip -q ../stable-widget.ipa -d ../stable-widget-extracted
+          widget="$(find ../stable-widget-extracted/Payload/LiveContainer.app -type d \( -name 'LiveWidgetExtension.appex' -o -name 'AltWidgetExtension.appex' \) -print -quit || true)"
+          test -n "$widget"
+          cp -R "$widget" ../stable-widget
+          echo "Stable widget: $widget"
+
       - name: Archive LiveContainer e55609b
         working-directory: LiveContainer
         shell: bash
@@ -140,7 +120,8 @@ jobs:
             -arch arm64 \
             -configuration Release | xcbeautify --renderer github-actions && exit ${PIPESTATUS[0]}
           test -d "$LC_ARCHIVE.xcarchive/Products/Applications/LiveContainer.app"
-      - name: Patch official LiveContainer packaging script to use patched SideStore
+
+      - name: Patch official LiveContainer packaging script
         working-directory: LiveContainer
         shell: bash
         run: |
@@ -151,11 +132,13 @@ jobs:
           s = p.read_text()
           start = s.index('# download SideStore')
           end = s.index('# copy intents')
-          replacement = '''# SideStore 9b015d1f with GSA transport fix\ncd tmp\ncp "$GITHUB_WORKSPACE/SideStore/SideStore.ipa" SideStore.ipa\nunzip -oq SideStore.ipa\ncd ..\n\n# SideStore\nmv ./tmp/Payload/SideStore.app ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework\n./dylibify ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib\nrm ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\nmv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\nldid -S"" ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\ncp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/\n'''
+          replacement = '''# SideStore 9b015d1f with GSA client-info fix\n          cd tmp\n          cp "$GITHUB_WORKSPACE/SideStore/SideStore.ipa" SideStore.ipa\n          unzip -oq SideStore.ipa\n          cd ..\n\n          rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework\n          mv ./tmp/Payload/SideStore.app ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework\n          ./dylibify ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib\n          rm ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\n          mv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\n          ldid -S\"\" ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore\n          cp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/\n\n          # Restore the known-working widget from stable LiveContainer 3.8.0.\n          rm -rf ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\n          cp -R "$GITHUB_WORKSPACE/stable-widget" ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\n          if [ -f ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension ]; then\n            mv ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension\n          fi\n          /usr/libexec/PlistBuddy -c \"Set :CFBundleIdentifier com.kdt.livecontainer.LiveWidget\" ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist || /usr/libexec/PlistBuddy -c \"Add :CFBundleIdentifier string com.kdt.livecontainer.LiveWidget\" ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist\n          /usr/libexec/PlistBuddy -c \"Set :CFBundleExecutable LiveWidgetExtension\" ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist || /usr/libexec/PlistBuddy -c \"Add :CFBundleExecutable string LiveWidgetExtension\" ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist\n          '''
           s = s[:start] + replacement + s[end:]
           s = s.replace('find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +', 'find Payload -type d -name "_CodeSignature" -exec rm -r {} +')
           p.write_text(s)
           PY
+          grep -n -A4 -B3 'known-working widget' .github/build_github.sh
+
       - name: Package final LiveContainer + SideStore IPA
         working-directory: LiveContainer
         shell: bash
@@ -169,7 +152,8 @@ jobs:
           test -s "$GITHUB_WORKSPACE/$FINAL_NAME"
           unzip -tq "$GITHUB_WORKSPACE/$FINAL_NAME"
           ls -lh "$GITHUB_WORKSPACE/$FINAL_NAME"
-      - name: Verify final bundle and widget
+
+      - name: Verify final bundle, GSA patch and widget
         shell: bash
         run: |
           set -euo pipefail
@@ -183,6 +167,7 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' verify-final/Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist
           /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' verify-final/Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist
           ls -lh "$FINAL_NAME"
+
       - name: Upload final integrated IPA
         uses: actions/upload-artifact@v4
         with:
