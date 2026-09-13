@@ -3,6 +3,8 @@ name: Build SideStore with GSA transport fix
 on:
   push:
     branches: [gsa-sidesign-build]
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 jobs:
