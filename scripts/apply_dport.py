@@ -253,7 +253,11 @@ loc = ROOT / "Locus" / "Resources" / "zh-Hant.lproj" / "Localizable.strings"
 loc.parent.mkdir(parents=True, exist_ok=True)
 entries = []
 for en, zh in TRANSLATIONS.items():
-    entries.append(f'"{swift_escape(en)}" = "{swift_escape(zh)}";')
+    # Branding runs before localization, so keep both original and branded keys.
+    branded_key = en.replace("Locus", "DPort")
+    entries.append(f'"{swift_escape(branded_key)}" = "{swift_escape(zh)}";')
+    if branded_key != en:
+        entries.append(f'"{swift_escape(en)}" = "{swift_escape(zh)}";')
 loc.write_text("\n".join(entries) + "\n", encoding="utf-8")
 
 print(f"DPort branding/localization applied: {len(TRANSLATIONS)} strings.")
