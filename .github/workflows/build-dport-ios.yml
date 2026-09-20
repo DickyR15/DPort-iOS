@@ -22,7 +22,7 @@ jobs:
           xcodebuild -version
 
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: brew install xcodegen imagemagick
 
       - name: Fetch upstream Locus source
         run: |
