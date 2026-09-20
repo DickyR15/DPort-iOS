@@ -146,6 +146,54 @@ TRANSLATIONS = {
     "Failed to write pairing file": "無法寫入配對檔案",
     "Paired, but failed to save file: ": "已完成配對，但儲存檔案失敗：",
     "No route found": "找不到符合條件的路線",
+    "Get LocalDevVPN (App Store)": "取得 LocalDevVPN（App Store）",
+    "Rename Favorite": "重新命名我的最愛",
+    "close enough": "差不多就好",
+    "Remove Pin": "移除圖釘",
+    "Selected pin": "已選取圖釘",
+    "Map pin": "地圖圖釘",
+    "Movement joystick": "移動搖桿",
+    "Connect this iPhone": "連接這台 iPhone",
+    "Developer pairing": "開發者配對",
+    "Favorites": "我的最愛",
+    "Recents": "最近使用",
+    "Delete": "刪除",
+    "Rename": "重新命名",
+    "Cancel": "取消",
+    "Save": "儲存",
+    "Name": "名稱",
+    "Places": "地點",
+    "Version": "版本",
+    "Engine": "引擎",
+    "Settings": "設定",
+    "About": "關於",
+    "Privacy": "隱私權",
+    "Status": "狀態",
+    "Tunnel": "通道",
+    "Device tunnel IP": "裝置通道 IP",
+    "Save tunnel IP": "儲存通道 IP",
+    "RPPairing file installed": "RPPairing 檔案已安裝",
+    "No pairing file": "尚未安裝配對檔案",
+    "Import RPPairing file…": "匯入 RPPairing 檔案…",
+    "Paste RPPairing from clipboard": "從剪貼簿貼上 RPPairing",
+    "Remove pairing file": "移除配對檔案",
+    "Open LocalDevVPN": "開啟 LocalDevVPN",
+    "Get LocalDevVPN": "取得 LocalDevVPN",
+    "I’ve connected it — continue": "我已連線，繼續",
+    "Walk": "步行",
+    "Run": "跑步",
+    "Cycle": "自行車",
+    "Drive": "駕車",
+    "Stop": "停止",
+    "Teleport": "傳送定位",
+    "On": "開",
+    "Joy": "搖桿",
+    "Done": "完成",
+    "OK": "好",
+    "Rename Favorite": "重新命名我的最愛",
+    "Get started": "開始使用",
+    "Import": "匯入",
+    "Export": "匯出",
     "No track points found in GPX": "GPX 中找不到軌跡點",
 }
 
@@ -261,5 +309,49 @@ for en, zh in TRANSLATIONS.items():
     if branded_key != en:
         entries.append(f'"{swift_escape(en)}" = "{swift_escape(zh)}";')
 loc.write_text("\n".join(entries) + "\n", encoding="utf-8")
+
+# 6) DPort app icon: build a conventional AppIcon asset catalog from the
+#    checked-in vector artwork. This keeps the icon reproducible in CI.
+assets = ROOT / "Assets.xcassets"
+appicon = assets / "AppIcon.appiconset"
+appicon.mkdir(parents=True, exist_ok=True)
+icon_svg = ROOT.parent / "branding" / "DPort-AppIcon.svg"
+# Workflow runs from repository root, so ROOT.parent is kept as a fallback.
+if not icon_svg.exists():
+    icon_svg = ROOT / "branding" / "DPort-AppIcon.svg"
+if icon_svg.exists():
+    import subprocess
+    icon_sizes = [20, 29, 40, 58, 60, 76, 80, 120, 152, 167, 180, 1024]
+    for size in icon_sizes:
+        subprocess.run([
+            "magick", str(icon_svg), "-background", "none",
+            "-resize", f"{size}x{size}", str(appicon / f"AppIcon-{size}.png")
+        ], check=True)
+    (appicon / "Contents.json").write_text(r'''{
+  "images" : [
+    { "filename" : "AppIcon-40.png", "idiom" : "iphone", "scale" : "2x", "size" : "20x20" },
+    { "filename" : "AppIcon-60.png", "idiom" : "iphone", "scale" : "3x", "size" : "20x20" },
+    { "filename" : "AppIcon-58.png", "idiom" : "iphone", "scale" : "2x", "size" : "29x29" },
+    { "filename" : "AppIcon-87.png", "idiom" : "iphone", "scale" : "3x", "size" : "29x29" },
+    { "filename" : "AppIcon-80.png", "idiom" : "iphone", "scale" : "2x", "size" : "40x40" },
+    { "filename" : "AppIcon-120.png", "idiom" : "iphone", "scale" : "3x", "size" : "40x40" },
+    { "filename" : "AppIcon-120.png", "idiom" : "iphone", "scale" : "2x", "size" : "60x60" },
+    { "filename" : "AppIcon-180.png", "idiom" : "iphone", "scale" : "3x", "size" : "60x60" },
+    { "filename" : "AppIcon-20.png", "idiom" : "ipad", "scale" : "1x", "size" : "20x20" },
+    { "filename" : "AppIcon-40.png", "idiom" : "ipad", "scale" : "2x", "size" : "20x20" },
+    { "filename" : "AppIcon-29.png", "idiom" : "ipad", "scale" : "1x", "size" : "29x29" },
+    { "filename" : "AppIcon-58.png", "idiom" : "ipad", "scale" : "2x", "size" : "29x29" },
+    { "filename" : "AppIcon-40.png", "idiom" : "ipad", "scale" : "1x", "size" : "40x40" },
+    { "filename" : "AppIcon-80.png", "idiom" : "ipad", "scale" : "2x", "size" : "40x40" },
+    { "filename" : "AppIcon-76.png", "idiom" : "ipad", "scale" : "1x", "size" : "76x76" },
+    { "filename" : "AppIcon-152.png", "idiom" : "ipad", "scale" : "2x", "size" : "76x76" },
+    { "filename" : "AppIcon-167.png", "idiom" : "ipad", "scale" : "2x", "size" : "83.5x83.5" },
+    { "filename" : "AppIcon-1024.png", "idiom" : "ios-marketing", "scale" : "1x", "size" : "1024x1024" }
+  ],
+  "info" : { "author" : "Dicky", "version" : 1 }
+}
+''', encoding="utf-8")
+else:
+    raise SystemExit("Missing branding/DPort-AppIcon.svg")
 
 print(f"DPort branding/localization applied: {len(TRANSLATIONS)} strings.")
