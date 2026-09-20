@@ -321,7 +321,7 @@ if not icon_svg.exists():
     icon_svg = ROOT / "branding" / "DPort-AppIcon.svg"
 if icon_svg.exists():
     import subprocess
-    icon_sizes = [20, 29, 40, 58, 60, 76, 80, 120, 152, 167, 180, 1024]
+    icon_sizes = [20, 29, 40, 58, 60, 76, 80, 87, 120, 152, 167, 180, 1024]
     for size in icon_sizes:
         subprocess.run([
             "magick", str(icon_svg), "-background", "none",
