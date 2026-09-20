@@ -35,6 +35,17 @@ jobs:
         working-directory: src-build
         run: python3 ../scripts/apply_dport.py
 
+      - name: Install SVG renderer
+        run: brew install librsvg
+
+      - name: Install DPort app icon
+        run: |
+          set -euo pipefail
+          mkdir -p src-build/Locus/Resources/Assets.xcassets/AppIcon.appiconset
+          rsvg-convert -w 1024 -h 1024 branding/DPort-AppIcon.svg \
+            -o src-build/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          test -s src-build/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+
       - name: Generate Xcode project
         working-directory: src-build
         run: xcodegen generate
