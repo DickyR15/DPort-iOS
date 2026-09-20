@@ -211,6 +211,7 @@ for old, new in [
     ('CURRENT_PROJECT_VERSION: "3"', 'CURRENT_PROJECT_VERSION: "35"'),
 ]:
     project = project.replace(old, new)
+project = project.replace("      - path: AppIcon.icon", "      - path: Assets.xcassets")
 PROJECT.write_text(project, encoding="utf-8")
 
 # 2) Brand visible UI text in plist.
