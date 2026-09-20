@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071A34"/>
+      <stop offset="0.52" stop-color="#0B67E8"/>
+      <stop offset="1" stop-color="#5B26C7"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".25"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".06"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#48C8FF" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#48C8FF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="26" stdDeviation="28" flood-color="#000" flood-opacity=".42"/>
+    </filter>
+  </defs>
+
+  <rect x="18" y="18" width="988" height="988" rx="220" fill="url(#bg)"/>
+  <rect x="36" y="36" width="952" height="952" rx="202" fill="url(#glass)" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="3"/>
+  <circle cx="520" cy="420" r="360" fill="url(#glow)"/>
+
+  <g filter="url(#shadow)">
+    <path d="M512 164c-142 0-244 107-244 238 0 166 184 298 244 438 60-140 244-272 244-438 0-131-102-238-244-238z"
+          fill="#1EA7FF" stroke="#E8F8FF" stroke-width="16"/>
+    <path d="M512 208c-112 0-192 84-192 194 0 120 122 218 192 324 70-106 192-204 192-324 0-110-80-194-192-194z"
+          fill="url(#bg)" opacity=".45"/>
+    <circle cx="512" cy="416" r="92" fill="#071A34" stroke="#F4FCFF" stroke-width="14"/>
+    <circle cx="512" cy="416" r="48" fill="#32B6FF"/>
+  </g>
+
+  <g transform="translate(198 714)">
+    <text x="512" y="0" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Display',Arial,sans-serif"
+          font-size="150" font-weight="800" letter-spacing="-6" fill="#FFFFFF">DPort</text>
+    <text x="512" y="92" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Display',Arial,sans-serif"
+          font-size="40" font-weight="600" letter-spacing="8" fill="#D9F4FF">BY DICKY</text>
+  </g>
+
+  <path d="M150 170Q300 70 450 120" fill="none" stroke="#FFFFFF" stroke-opacity=".1" stroke-width="28" stroke-linecap="round"/>
+</svg>
