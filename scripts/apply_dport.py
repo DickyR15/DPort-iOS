@@ -73,6 +73,8 @@ TRANSLATIONS = {
     "Spoofing": "模擬定位中",
     "Reconnecting…": "重新連線中…",
     "Interrupted": "已中斷",
+    "Disconnected": "已中斷",
+    "Disconnected — \\(reason)": "已中斷：\\(reason)",
     "Tap the map to drop a pin first.": "請先點選地圖放置圖釘。",
     "Connect LocalDevVPN": "連線 LocalDevVPN",
     "Stop": "停止",
