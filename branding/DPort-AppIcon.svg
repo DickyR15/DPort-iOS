@@ -32,11 +32,10 @@
     <circle cx="512" cy="416" r="48" fill="#32B6FF"/>
   </g>
 
-  <g transform="translate(198 714)">
-    <text x="512" y="0" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Display',Arial,sans-serif"
-          font-size="150" font-weight="800" letter-spacing="-6" fill="#FFFFFF">DPort</text>
-    <text x="512" y="92" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Display',Arial,sans-serif"
-          font-size="40" font-weight="600" letter-spacing="8" fill="#D9F4FF">BY DICKY</text>
+  <g transform="translate(512 416)">
+    <path d="M-70-110 V110 H20 C95 110 142 70 142 0 C142-70 95-110 20-110 Z M-20-55 H15 C55-55 82-36 82 0 C82 36 55 55 15 55 H-20 Z"
+          fill="#FFFFFF"/>
+    <circle cx="92" cy="-108" r="30" fill="#52EDFF" stroke="#FFFFFF" stroke-width="8"/>
   </g>
 
   <path d="M150 170Q300 70 450 120" fill="none" stroke="#FFFFFF" stroke-opacity=".1" stroke-width="28" stroke-linecap="round"/>
