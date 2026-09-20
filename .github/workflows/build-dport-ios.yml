@@ -1,0 +1,120 @@
+name: DPort iOS Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/build-dport-ios.yml'
+      - 'README.md'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build DPort unsigned IPA
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout DPort build repository
+        uses: actions/checkout@v6
+
+      - name: Select Xcode 26.6
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Fetch upstream Locus source
+        run: |
+          git clone --depth 1 https://github.com/ChrisMack32/Locus.git upstream-locus
+          rsync -a --exclude='.git' upstream-locus/ ./src-build/
+
+      - name: Apply DPort branding
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src-build
+
+          # Project identity
+          sed -i '' 's/^name: Locus$/name: DPort/' project.yml
+          sed -i '' 's/^  Locus:$/  DPort:/' project.yml
+          sed -i '' 's/com\.chrismack\.locus/com.dicky.dport/g' project.yml
+          sed -i '' 's/PRODUCT_NAME: Locus/PRODUCT_NAME: DPort/g' project.yml
+          sed -i '' 's/MARKETING_VERSION: "1.0.2"/MARKETING_VERSION: "6.8.2"/g' project.yml
+          sed -i '' 's/CURRENT_PROJECT_VERSION: "3"/CURRENT_PROJECT_VERSION: "35"/g' project.yml
+
+          # Visible Locus branding in Swift/UI and plist strings only.
+          find Locus -type f \( -name '*.swift' -o -name '*.plist' \) -print0 |
+            xargs -0 perl -pi -e 's/\bLocus\b/DPort/g'
+
+          # Add Traditional Chinese (Taiwan) localization for the main visible UI.
+          mkdir -p Locus/Resources/zh-Hant.lproj
+          cat > Locus/Resources/zh-Hant.lproj/Localizable.strings <<'EOF'
+"Search places" = "搜尋地點";
+"Clear and dismiss keyboard" = "清除並關閉鍵盤";
+"Done" = "完成";
+"Routes" = "路線";
+"Road route" = "道路路線";
+"Use current pin / spoof as start" = "使用目前定位／模擬位置作為起點";
+"Use current pin as end" = "使用目前定位作為終點";
+"Start" = "起點";
+"End" = "終點";
+"Build walk/drive route on roads" = "建立步行／駕車道路路線";
+"Play / draw / GPX" = "播放／繪製／GPX";
+"Use drawn path from map" = "使用地圖繪製的路徑";
+"Follow route" = "沿路線移動";
+"Import GPX" = "匯入 GPX";
+"Export GPX" = "匯出 GPX";
+"Use current pin as end" = "使用目前定位作為終點";
+"No computer needed" = "不需要電腦";
+"Pair on this iPhone" = "在此 iPhone 上配對";
+"Close" = "關閉";
+"Start pairing" = "開始配對";
+"Try again" = "再試一次";
+"Continue" = "繼續";
+"Paired" = "已配對";
+"Pairing failed" = "配對失敗";
+"Ready when you are" = "準備就緒";
+"Waiting for Settings…" = "等待設定…";
+"iPhone connected" = "iPhone 已連線";
+"Generating your 6-digit code…" = "正在產生 6 位數驗證碼…";
+"Enter this code in Settings" = "請在設定中輸入此驗證碼";
+"Second prompt only — after your unlock passcode." = "請先輸入解鎖密碼，再輸入此驗證碼。";
+"Start" = "開始";
+EOF
+
+          # Localize the app's common visible literals where SwiftUI uses LocalizedStringKey.
+          # Keep internal type/function names such as LocusTheme and locusGlass unchanged.
+
+          xcodegen generate
+          xcodebuild -project DPort.xcodeproj -scheme DPort -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM='' \
+            -derivedDataPath build/DerivedData build
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src-build
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/DPort.app"
+          test -d "$APP_PATH"
+          mkdir -p Payload
+          rm -rf Payload/DPort.app
+          cp -R "$APP_PATH" Payload/DPort.app
+          /usr/bin/zip -qry "../DPort-iOS-unsigned.ipa" Payload
+          cd ..
+          ls -lh DPort-iOS-unsigned.ipa
+
+      - name: Upload DPort IPA
+        uses: actions/upload-artifact@v6
+        with:
+          name: DPort-iOS-unsigned
+          path: DPort-iOS-unsigned.ipa
+          if-no-files-found: error
