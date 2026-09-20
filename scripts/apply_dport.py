@@ -183,7 +183,7 @@ for swift in ROOT.joinpath("Locus").rglob("*.swift"):
         "Import an RPPairing file in Settings first.",
         "Drop a pin or teleport somewhere before using the joystick.",
         "Tap the map to drop a pin first.",
-        "Locus connected", "Locus pairing code", "Locus paired", "Locus spoof dropped",
+        "DPort connected", "DPort pairing code", "DPort paired", "DPort spoof dropped",
         "Generating pairing code…",
         "RPPairing is ready. Connect LocalDevVPN, then teleport.",
         "Pairing finished but no pairing file was returned.",
