@@ -514,7 +514,10 @@ def patch_vpn_integration(s):
             '    static let detectURL = URL(string: "localdevvpn://")!\n    static let setupKey = "dport.localdevvpn.setupRequested"\n'
         )
     anchor = '''    static var isInstalled: Bool {
-        UIApplication.shared.canOpenURL(detectURL)
+        // canOpenURL is the primary check. If the LocalDevVPN tunnel is
+        // already active, the 10.7.0.x interface is definitive proof that
+        // the app is installed even if iOS temporarily denies URL probing.
+        UIApplication.shared.canOpenURL(detectURL) || isConnected
     }
 '''
     replacement = '''    static var isInstalled: Bool {
