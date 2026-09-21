@@ -343,7 +343,8 @@ def patch_pair_view(s):
         'return "Connected — code coming next."':'return "已連線，驗證碼即將產生。"',
         'default: return "Waiting for iOS to connect… don’t force-quit Locus."':'default: return "等待 iOS 連線…請不要強制關閉 DPort。"'
     }
-    for (a,b) in reps { s=s.replace(a,b) }
+    for (a,b) in reps.items():
+        s = s.replace(a, b)
     return s
 
 rw("Locus/Features/Settings/PairOnDeviceView.swift", patch_pair_view)
@@ -362,7 +363,8 @@ def patch_setup_view(s):
         '.alert("Locus", isPresented:':' .alert("DPort", isPresented:',
         'Button("OK", role: .cancel)':'Button("確定", role: .cancel)'
     }
-    for (a,b) in reps { s=s.replace(a,b) }
+    for (a,b) in reps.items():
+        s = s.replace(a, b)
     return s
 rw("Locus/Features/Setup/SetupFlowView.swift", patch_setup_view)
 
@@ -378,7 +380,8 @@ def patch_map_view(s):
         'session.lastError = "Nothing to export."':'session.lastError = "目前沒有可匯出的路線。"',
         'appendingPathComponent("Locus-Route.gpx")':'appendingPathComponent("DPort-Route.gpx")'
     }
-    for (a,b) in reps { s=s.replace(a,b) }
+    for (a,b) in reps.items():
+        s = s.replace(a, b)
     return s
 rw("Locus/Features/Map/MapHomeView.swift", patch_map_view)
 
