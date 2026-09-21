@@ -2,41 +2,56 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#071A34"/>
-      <stop offset="0.52" stop-color="#0B67E8"/>
-      <stop offset="1" stop-color="#5B26C7"/>
+      <stop offset="0" stop-color="#06213B"/>
+      <stop offset="0.55" stop-color="#031426"/>
+      <stop offset="1" stop-color="#000814"/>
     </linearGradient>
-    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".25"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".06"/>
+    <linearGradient id="d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#28D8F7"/>
+      <stop offset="0.48" stop-color="#0799F4"/>
+      <stop offset="1" stop-color="#1758F5"/>
     </linearGradient>
-    <radialGradient id="glow" cx="50%" cy="45%" r="55%">
-      <stop offset="0" stop-color="#48C8FF" stop-opacity=".45"/>
-      <stop offset="1" stop-color="#48C8FF" stop-opacity="0"/>
-    </radialGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="26" stdDeviation="28" flood-color="#000" flood-opacity=".42"/>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000000" flood-opacity=".42"/>
     </filter>
   </defs>
 
-  <rect x="18" y="18" width="988" height="988" rx="220" fill="url(#bg)"/>
-  <rect x="36" y="36" width="952" height="952" rx="202" fill="url(#glass)" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="3"/>
-  <circle cx="520" cy="420" r="360" fill="url(#glow)"/>
+  <rect x="18" y="18" width="988" height="988" rx="210" fill="url(#bg)" stroke="#2E668F" stroke-width="8"/>
 
   <g filter="url(#shadow)">
-    <path d="M512 164c-142 0-244 107-244 238 0 166 184 298 244 438 60-140 244-272 244-438 0-131-102-238-244-238z"
-          fill="#1EA7FF" stroke="#E8F8FF" stroke-width="16"/>
-    <path d="M512 208c-112 0-192 84-192 194 0 120 122 218 192 324 70-106 192-204 192-324 0-110-80-194-192-194z"
-          fill="url(#bg)" opacity=".45"/>
-    <circle cx="512" cy="416" r="92" fill="#071A34" stroke="#F4FCFF" stroke-width="14"/>
-    <circle cx="512" cy="416" r="48" fill="#32B6FF"/>
+    <!-- D-shaped locator mark -->
+    <path d="M265 270
+             C265 190 330 125 410 125
+             H625
+             C790 125 900 255 900 420
+             C900 585 790 715 625 715
+             H250
+             V390
+             C250 335 285 292 335 275
+             L265 330 Z"
+          fill="url(#d)"/>
+    <!-- inner negative space -->
+    <path d="M455 285
+             H600
+             C685 285 735 340 735 420
+             C735 500 685 555 600 555
+             H455 Z"
+          fill="#031426"/>
+    <!-- locator pin -->
+    <path d="M575 315
+             C510 315 462 365 462 425
+             C462 480 520 535 575 600
+             C630 535 688 480 688 425
+             C688 365 640 315 575 315 Z"
+          fill="url(#d)"/>
+    <circle cx="575" cy="420" r="35" fill="#031426"/>
   </g>
 
-  <g transform="translate(512 416)">
-    <path d="M-70-110 V110 H20 C95 110 142 70 142 0 C142-70 95-110 20-110 Z M-20-55 H15 C55-55 82-36 82 0 C82 36 55 55 15 55 H-20 Z"
-          fill="#FFFFFF"/>
-    <circle cx="92" cy="-108" r="30" fill="#52EDFF" stroke="#FFFFFF" stroke-width="8"/>
-  </g>
-
-  <path d="M150 170Q300 70 450 120" fill="none" stroke="#FFFFFF" stroke-opacity=".1" stroke-width="28" stroke-linecap="round"/>
+  <text x="512" y="850"
+        text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="164"
+        font-weight="700"
+        letter-spacing="-7"
+        fill="#FFFFFF">DPort</text>
 </svg>
