@@ -75,7 +75,7 @@ jobs:
           # Build a standard IPA (ZIP container) and verify it before upload.
           # Use the standard ZIP utility for maximum compatibility with iOS Files.
           # The IPA itself is a ZIP archive whose root must contain Payload/DPort.app/.
-          (cd Payload && zip -qry ../DPort-iOS-unsigned.ipa DPort.app)
+          zip -qry DPort-iOS-unsigned.ipa Payload/DPort.app
           unzip -t DPort-iOS-unsigned.ipa
           unzip -l DPort-iOS-unsigned.ipa | head -25
 
