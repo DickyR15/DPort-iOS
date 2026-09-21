@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 ROOT = Path.cwd()
 PROJECT = ROOT / "project.yml"
