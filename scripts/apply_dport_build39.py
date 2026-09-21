@@ -310,4 +310,85 @@ private struct DiagnosticRow: View {
 }
 ''')
 
+
+# Final UI polish: remove remaining user-visible English/Locus branding.
+def patch_pair_view(s):
+    reps = {
+        'navigationTitle("Pair on this iPhone")':'navigationTitle("在此 iPhone 上配對")',
+        'Button("Close")':'Button("關閉")',
+        'Text("No computer needed")':'Text("不需要電腦")',
+        'Text("Locus advertises a pairable host. iOS connects from Developer Mode, then Locus shows a 6-digit code for you to type.")':'Text("DPort 會建立可配對連線。請從「開發者模式」連線，接著在 DPort 輸入 6 位數驗證碼。")',
+        'Text("Follow these steps")':'Text("請依照以下步驟操作")',
+        'Text("Keep Locus open. You’ll leave briefly for Settings, then come back with a code.")':'Text("請保持 DPort 開啟。暫時前往「設定」，完成配對後再回到 DPort。")',
+        'Tap Start pairing and allow Local Network + Location when asked.':'點選「開始配對」，並在系統詢問時允許「區域網路」與「定位」。',
+        'Allow notifications — the code can appear as a banner over Settings.':'允許通知，驗證碼可能會以通知橫幅顯示在「設定」畫面上。',
+        'Open Settings › Privacy & Security › Developer Mode › Pair with Locus → Pair.':'開啟「設定」›「隱私權與安全性」›「開發者模式」›「與 DPort 配對」→「配對」。',
+        'Enter your unlock passcode first. On the next prompt, type Locus’s 6-digit code.':'先輸入裝置解鎖密碼，再於下一個畫面輸入 DPort 的 6 位數驗證碼。',
+        'Label("If the code isn’t here yet", systemImage:':'Label("如果還沒看到驗證碼", systemImage:',
+        'Text("Keep the app listening while you confirm in Developer Mode. Don’t force-quit. If “Pair with Locus” vanishes, stop/start pairing and reopen Developer Mode.")':'Text("在「開發者模式」確認時，請保持 DPort 開啟，不要強制關閉。如果「與 DPort 配對」消失，請停止後重新開始配對，再開啟「開發者模式」。")',
+        'Label("Ready when you are", systemImage:':'Label("準備就緒，等待開始", systemImage:',
+        'Text("Waiting for Settings…")':'Text("等待「設定」連線…")',
+        'Text("In Developer Mode tap Pair with Locus → Pair.")':'Text("請在「開發者模式」點選「與 DPort 配對」→「配對」。")',
+        'Text("iPhone connected")':'Text("iPhone 已連線")',
+        'Text("Generating your 6-digit code…")':'Text("正在產生 6 位數驗證碼…")',
+        'Text("Enter this code in Settings")':'Text("請在「設定」輸入此驗證碼")',
+        'Text("Second prompt only — after your unlock passcode.")':'Text("這是第二個提示畫面的驗證碼，請先完成裝置解鎖驗證。")',
+        'Text("Paired")':'Text("已配對")',
+        'Next we’ll set up LocalDevVPN.':'接下來設定 LocalDevVPN。',
+        'RPPairing file saved. Connect LocalDevVPN, then teleport.':'配對檔案已儲存。請連線 LocalDevVPN 後即可使用定位。',
+        'Text("Pairing failed")':'Text("配對失敗")',
+        'Text(host.phase == .idle ? "Start pairing" : "Try again")':'Text(host.phase == .idle ? "開始配對" : "再試一次")',
+        'Text(mode == .embedded ? "Continue" : "Done")':'Text(mode == .embedded ? "繼續" : "完成")',
+        'return "Type the code above into the second Settings prompt."':'return "請在「設定」的第二個提示畫面輸入上方驗證碼。"',
+        'return "Connected — code coming next."':'return "已連線，驗證碼即將產生。"',
+        'default: return "Waiting for iOS to connect… don’t force-quit Locus."':'default: return "等待 iOS 連線…請不要強制關閉 DPort。"'
+    }
+    for (a,b) in reps { s=s.replace(a,b) }
+    return s
+
+rw("Locus/Features/Settings/PairOnDeviceView.swift", patch_pair_view)
+
+def patch_setup_view(s):
+    reps = {
+        'Text("Locus")':'Text("DPort")',
+        'Text("Teleport your location.\\\\nNo computer required.")':'Text("模擬你的定位位置。\\\\n不需要電腦。")',
+        'Text("A short setup — about two minutes.")':'Text("簡單設定，大約需要兩分鐘。")',
+        'primaryButton("Get started")':'primaryButton("開始設定")',
+        'Text("Connect this iPhone")':'Text("連線此 iPhone")',
+        'Text("Locus needs a one-time pairing so it can set your location. You’ll confirm a short code in Settings.")':'Text("DPort 需要完成一次配對，才能設定你的定位位置。請在「設定」確認驗證碼。")',
+        'Text("Import a pairing file from your computer — Locus uses it to set your location securely on this device.")':'Text("從電腦匯入配對檔案，DPort 會在此裝置上安全地使用它設定定位。")',
+        'primaryButton("Import pairing file")':'primaryButton("匯入配對檔案")',
+        'Text("Paste from clipboard")':'Text("從剪貼簿貼上")',
+        '.alert("Locus", isPresented:':' .alert("DPort", isPresented:',
+        'Button("OK", role: .cancel)':'Button("確定", role: .cancel)'
+    }
+    for (a,b) in reps { s=s.replace(a,b) }
+    return s
+rw("Locus/Features/Setup/SetupFlowView.swift", patch_setup_view)
+
+def patch_map_view(s):
+    reps = {
+        'TextField("Search places", text: $searchText)':'TextField("搜尋地點", text: $searchText)',
+        'Button("Done")':'Button("完成")',
+        'accessibilityLabel("Clear and dismiss keyboard")':'accessibilityLabel("清除並關閉鍵盤")',
+        'accessibilityLabel("Current location")':'accessibilityLabel("目前位置")',
+        'Annotation("Spoof", coordinate: sim)':'Annotation("模擬位置", coordinate: sim)',
+        'session.lastError = "Set a route start and end."':'session.lastError = "請設定路線起點與終點。"',
+        'session.lastError = "Build or draw a route first."':'session.lastError = "請先建立或繪製路線。"',
+        'session.lastError = "Nothing to export."':'session.lastError = "目前沒有可匯出的路線。"',
+        'appendingPathComponent("Locus-Route.gpx")':'appendingPathComponent("DPort-Route.gpx")'
+    }
+    for (a,b) in reps { s=s.replace(a,b) }
+    return s
+rw("Locus/Features/Map/MapHomeView.swift", patch_map_view)
+
+rw("Locus/Resources/Info.plist", lambda s:
+   s.replace("<string>Locus</string>", "<string>DPort</string>", 1)
+    .replace("Locus uses your real location so you can aim the map and return home after teleporting.",
+             "DPort 會使用你的實際位置，協助地圖定位與返回目前位置。")
+    .replace("Locus keeps a light location session alive so simulated GPS can stay active in the background.",
+             "DPort 會維持必要的定位工作階段，讓模擬定位可在背景持續運作。")
+    .replace("Locus uses the local network to advertise as a pairable host (iOS 27 pairing) and to reach the developer tunnel (LocalDevVPN) for GPS override.",
+             "DPort 會使用區域網路進行 iOS 27 配對，並透過 LocalDevVPN 連線至開發者定位通道。"))
+
 print("DPort Build 39 feature layer applied.")
