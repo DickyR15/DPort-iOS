@@ -468,4 +468,253 @@ rw("Locus/Resources/Info.plist", lambda s:
     .replace("Locus uses the local network to advertise as a pairable host (iOS 27 pairing) and to reach the developer tunnel (LocalDevVPN) for GPS override.",
              "DPort 會使用區域網路進行 iOS 27 配對，並透過 LocalDevVPN 連線至開發者定位通道。"))
 
-print("DPort Build 39 feature layer applied.")
+
+# Build 51: automatic LocalDevVPN setup/status integration.
+# DPort cannot edit another app's VPN profile directly, but the LocalDevVPN
+# public deep-link starts its own manager and creates the configuration when
+# missing. We use that supported entry point and return to DPort automatically.
+def patch_vpn_integration(s):
+    s = s.replace(
+        'static let enableURL = URL(string: "localdevvpn://enable?scheme=locus")!',
+        'static let enableURL = URL(string: "localdevvpn://enable?scheme=dport")!'
+    )
+    if 'static let setupKey = "dport.localdevvpn.setupRequested"' not in s:
+        s = s.replace(
+            '    static let detectURL = URL(string: "localdevvpn://")!\n',
+            '    static let detectURL = URL(string: "localdevvpn://")!\n    static let setupKey = "dport.localdevvpn.setupRequested"\n'
+        )
+    anchor = '''    static var isInstalled: Bool {
+        UIApplication.shared.canOpenURL(detectURL)
+    }
+'''
+    replacement = '''    static var isInstalled: Bool {
+        UIApplication.shared.canOpenURL(detectURL)
+    }
+
+    static var isConfigured: Bool {
+        UserDefaults.standard.bool(forKey: setupKey) || isConnected
+    }
+
+    static func markConfigured() {
+        UserDefaults.standard.set(true, forKey: setupKey)
+    }
+
+    /// Opens LocalDevVPN's supported enable deep-link. LocalDevVPN creates
+    /// its provider configuration automatically if one does not exist.
+    static func autoConfigureAndConnect() {
+        markConfigured()
+        if isInstalled {
+            UIApplication.shared.open(enableURL)
+        } else {
+            openAppStore()
+        }
+    }
+'''
+    if anchor not in s:
+        raise SystemExit("LocalDevVPN isInstalled anchor not found")
+    s = s.replace(anchor,replacement,1)
+    return s
+
+vpn=ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
+if vpn.exists():
+    vpn.write_text(patch_vpn_integration(vpn.read_text(encoding="utf-8")), encoding="utf-8")
+
+# Return callback from LocalDevVPN and remember that DPort setup succeeded.
+app=ROOT / "Locus" / "App" / "LocusApp.swift"
+if app.exists():
+    s=app.read_text(encoding="utf-8")
+    old='''    private func handleIncoming(_ url: URL) {
+        let ext = url.pathExtension.lowercased()
+'''
+    new='''    private func handleIncoming(_ url: URL) {
+        if url.scheme == "dport" {
+            LocalDevVPN.markConfigured()
+            NotificationCenter.default.post(name: .dportVPNStatusChanged, object: nil)
+            return
+        }
+
+        let ext = url.pathExtension.lowercased()
+'''
+    if old not in s:
+        raise SystemExit("LocusApp handleIncoming anchor not found")
+    s=s.replace(old,new,1)
+    if 'static let dportVPNStatusChanged' not in s:
+        s=s.replace(
+            'static let locusImportGPX = Notification.Name("locusImportGPX")',
+            'static let locusImportGPX = Notification.Name("locusImportGPX")\n    static let dportVPNStatusChanged = Notification.Name("dportVPNStatusChanged")'
+        )
+    app.write_text(s,encoding="utf-8")
+
+# Automatic DPort-side tunnel default: no manual IP is required on first use.
+tun=ROOT / "Locus" / "Engine" / "DeviceTunnel.swift"
+if tun.exists():
+    s=tun.read_text(encoding="utf-8")
+    if 'static let configuredKey = "dport.tunnelIPConfigured"' not in s:
+        s=s.replace(
+            '    static let defaultsKey = "locus.targetDeviceIP"\n',
+            '    static let defaultsKey = "locus.targetDeviceIP"\n    static let configuredKey = "dport.tunnelIPConfigured"\n'
+        )
+    if 'static var isConfigured:' not in s:
+        s=s.replace(
+            '''    static func setTargetIP(_ value: String) {
+        UserDefaults.standard.set(value, forKey: defaultsKey)
+    }
+''',
+            '''    static var isConfigured: Bool {
+        if UserDefaults.standard.bool(forKey: configuredKey) { return true }
+        return UserDefaults.standard.string(forKey: defaultsKey) != nil
+    }
+
+    static func ensureConfigured() {
+        guard !isConfigured else { return }
+        UserDefaults.standard.set(defaultIP, forKey: defaultsKey)
+        UserDefaults.standard.set(true, forKey: configuredKey)
+    }
+
+    static func setTargetIP(_ value: String) {
+        UserDefaults.standard.set(value, forKey: defaultsKey)
+        UserDefaults.standard.set(true, forKey: configuredKey)
+    }
+
+    static func resetToDefault() {
+        UserDefaults.standard.set(defaultIP, forKey: defaultsKey)
+        UserDefaults.standard.set(true, forKey: configuredKey)
+    }
+''',
+            1
+        )
+    tun.write_text(s,encoding="utf-8")
+
+# Make the Settings screen behave like a first-run setup, not an IP form.
+settings=ROOT / "Locus" / "Features" / "Settings" / "SettingsView.swift"
+if settings.exists():
+    s=settings.read_text(encoding="utf-8")
+    s=s.replace(
+        '    @State private var tunnelIP = TunnelConfig.targetIP',
+        '    @State private var tunnelIP = TunnelConfig.targetIP\n    @State private var vpnConfigured = LocalDevVPN.isConfigured'
+    )
+    # Insert a dedicated automatic LocalDevVPN section before the existing
+    # tunnel section. The section is idempotent so reruns do not duplicate it.
+    if 'Section("VPN 連線")' not in s:
+        needle='''                Section {
+                    TextField("通道 IP", text: $tunnelIP)'''
+        block='''                Section("VPN 連線") {
+                    LabeledContent("LocalDevVPN") {
+                        Text(
+                            LocalDevVPN.isConnected
+                                ? "已連線"
+                                : (vpnConfigured ? "已設定" : "尚未設定")
+                        )
+                        .foregroundStyle(
+                            LocalDevVPN.isConnected
+                                ? LocusTheme.statusGood
+                                : (vpnConfigured ? .secondary : LocusTheme.statusWarn)
+                        )
+                    }
+
+                    LabeledContent("裝置通道") {
+                        Text(TunnelConfig.targetIP)
+                            .font(.system(.body, design: .monospaced))
+                    }
+
+                    if !vpnConfigured {
+                        Button {
+                            TunnelConfig.ensureConfigured()
+                            vpnConfigured = true
+                            LocalDevVPN.autoConfigureAndConnect()
+                        } label: {
+                            Label("自動設定並連線", systemImage: "wand.and.stars")
+                        }
+                    } else if !LocalDevVPN.isConnected {
+                        Button {
+                            LocalDevVPN.autoConfigureAndConnect()
+                        } label: {
+                            Label("開啟並連線 VPN", systemImage: "lock.shield.fill")
+                        }
+                    }
+
+                    if LocalDevVPN.isConnected {
+                        Label("VPN 通道正常", systemImage: "checkmark.shield.fill")
+                            .foregroundStyle(LocusTheme.statusGood)
+                    } else if vpnConfigured {
+                        Text("VPN 已設定，目前尚未連線。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else if !LocalDevVPN.isInstalled {
+                        Text("尚未安裝 LocalDevVPN，點選「自動設定並連線」會前往 App Store。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("進階通道設定") {
+                    TextField("通道 IP", text: $tunnelIP)'''
+        if needle not in s:
+            raise SystemExit("Settings tunnel section needle not found")
+        s=s.replace(needle,block,1)
+
+    # The old manual save remains available as advanced configuration but now
+    # also records the setting state.
+    s=s.replace(
+        'TunnelConfig.setTargetIP(value)\n                            tunnelIP = TunnelConfig.targetIP',
+        'TunnelConfig.setTargetIP(value)\n                            vpnConfigured = true\n                            tunnelIP = TunnelConfig.targetIP'
+    )
+    # On returning from LocalDevVPN, refresh the state and show configured.
+    s=s.replace(
+        '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+                tunnelIP = TunnelConfig.targetIP
+            }''',
+        '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+                TunnelConfig.ensureConfigured()
+                tunnelIP = TunnelConfig.targetIP
+                vpnConfigured = LocalDevVPN.isConfigured
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .dportVPNStatusChanged)) { _ in
+                vpnConfigured = LocalDevVPN.isConfigured
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+                tunnelIP = TunnelConfig.targetIP
+            }'''
+    )
+    settings.write_text(s,encoding="utf-8")
+
+# Add DPort callback URL + LocalDevVPN query permission to the app Info.plist.
+plist=ROOT / "Locus" / "Resources" / "Info.plist"
+if plist.exists():
+    s=plist.read_text(encoding="utf-8")
+    if "<string>dport</string>" not in s:
+        marker="</dict>\n</plist>"
+        insert='''\t<key>CFBundleURLTypes</key>
+\t<array>
+\t\t<dict>
+\t\t\t<key>CFBundleURLName</key>
+\t\t\t<string>com.dicky.dport</string>
+\t\t\t<key>CFBundleURLSchemes</key>
+\t\t\t<array>
+\t\t\t\t<string>dport</string>
+\t\t\t</array>
+\t\t</dict>
+\t</array>
+'''
+        # Existing Info.plist already has URL types on upstream/Locus; insert
+        # only a second URL declaration before the closing plist dictionary.
+        s=s.replace(marker,insert+marker,1)
+    if "<string>localdevvpn</string>" not in s:
+        marker="\t</array>\n\t<key>NSBonjourServices</key>"
+        query='''\t<key>LSApplicationQueriesSchemes</key>
+\t<array>
+\t\t<string>localdevvpn</string>
+\t</array>
+'''
+        s=s.replace(marker, "\t</array>\n"+query+"\t<key>NSBonjourServices</key>",1)
+    plist.write_text(s,encoding="utf-8")
+
+# New version without the digit 4.
+project=PROJECT.read_text(encoding="utf-8")
+project=project.replace('MARKETING_VERSION: "6.9.2"','MARKETING_VERSION: "6.9.5"')
+project=project.replace('CURRENT_PROJECT_VERSION: "39"','CURRENT_PROJECT_VERSION: "51"')
+PROJECT.write_text(project,encoding="utf-8")
+
+print("DPort Build 51 automatic VPN setup layer applied.")
+
