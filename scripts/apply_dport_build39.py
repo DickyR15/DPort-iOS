@@ -133,78 +133,170 @@ rw("Locus/Features/Settings/SettingsView.swift", patch_settings)
 
 # Tunnel IP: explicit save button with validation and visible feedback.
 def patch_tunnel_settings(s):
+    # This script runs after apply_dport.py, so most visible literals have
+    # already been translated to Traditional Chinese. Match both upstream
+    # English and already-localized forms to keep the patch idempotent.
     s = s.replace(
         '@State private var tunnelIP = TunnelConfig.targetIP',
         '@State private var tunnelIP = TunnelConfig.targetIP\\n'
         '    @State private var tunnelSaveMessage = ""\\n'
         '    @State private var showTunnelSaveMessage = false\\n'
-        '    @State private var vpnConfigured = LocalDevVPN.isConfigured'
+        '    @State private var vpnConfigured = LocalDevVPN.isConfigured',
+        1
     )
-    s = s.replace('''                    TextField("Device tunnel IP", text: $tunnelIP)''',
-                  '''                    TextField("通道 IP", text: $tunnelIP)''')
-    s = s.replace('''                    LabeledContent("Status") {
-                        Text(LocalDevVPN.isConnected ? "Connected" : "Not connected")
-                            .foregroundStyle(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)
+
+    # Replace the entire upstream Tunnel section. This is more reliable than
+    # matching individual localized labels after the first patcher runs.
+    section_re = re.compile(
+        r'\\n                Section \\{\\n'
+        r'                    TextField\\("(?:Device tunnel IP|裝置通道 IP|通道 IP)", text: \\$tunnelIP\\).*?'
+        r'\\n                \\} header: \\{\\n'
+        r'                    Text\\("(?:Tunnel|通道|定位通道)"\\)\\n'
+        r'                \\} footer: \\{\\n'
+        r'                    Text\\(".*?10\\.7\\.0\\.1.*?"\\)\\n'
+        r'                \\}',
+        re.S
+    )
+
+    replacement = r'''
+                Section("VPN 連線") {
+                    LabeledContent("LocalDevVPN") {
+                        Text(
+                            LocalDevVPN.isConnected
+                                ? "已連線"
+                                : (vpnConfigured ? "已設定，尚未連線" : "尚未設定")
+                        )
+                        .foregroundStyle(
+                            LocalDevVPN.isConnected
+                                ? LocusTheme.statusGood
+                                : (vpnConfigured ? .secondary : LocusTheme.statusWarn)
+                        )
                     }
-                    Button("Save tunnel IP") {
-                        TunnelConfig.setTargetIP(tunnelIP)
-                    }''',
-                  '''                    LabeledContent("連線狀態") {
+
+                    LabeledContent("裝置通道") {
+                        Text(TunnelConfig.targetIP)
+                            .font(.system(.body, design: .monospaced))
+                    }
+
+                    Button {
+                        TunnelConfig.ensureConfigured()
+                        vpnConfigured = true
+                        LocalDevVPN.autoConfigureAndConnect()
+                    } label: {
+                        Label(
+                            LocalDevVPN.isConnected
+                                ? "重新連線 VPN"
+                                : (vpnConfigured ? "開啟並連線 VPN" : "自動設定並連線"),
+                            systemImage: "lock.shield.fill"
+                        )
+                    }
+
+                    if LocalDevVPN.isConnected {
+                        Label("VPN 通道正常", systemImage: "checkmark.shield.fill")
+                            .foregroundStyle(LocusTheme.statusGood)
+                    } else if !LocalDevVPN.isInstalled {
+                        Text("尚未安裝 LocalDevVPN。點選上方按鈕可前往 App Store。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("DPort 會使用 LocalDevVPN 提供的裝置通道。一般情況不需要手動設定 IP。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("進階通道設定") {
+                    TextField("通道 IP", text: $tunnelIP)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onSubmit {
+                            let candidate = tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let parts = candidate.split(separator: ".")
+                            let valid = parts.count == 4 && parts.allSatisfy {
+                                guard let n = Int($0) else { return false }
+                                return (0...255).contains(n)
+                            }
+                            guard valid else {
+                                tunnelSaveMessage = "通道 IP 格式錯誤，請輸入例如 10.7.0.1"
+                                showTunnelSaveMessage = true
+                                return
+                            }
+                            TunnelConfig.setTargetIP(candidate)
+                            tunnelIP = TunnelConfig.targetIP
+                            vpnConfigured = true
+                            tunnelSaveMessage = "通道 IP 已套用：\\(tunnelIP)"
+                            showTunnelSaveMessage = true
+                        }
+
+                    LabeledContent("目前狀態") {
                         Text(LocalDevVPN.isConnected ? "已連線" : "未連線")
                             .foregroundStyle(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)
                     }
+
                     Button {
-                        let value = tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let parts = value.split(separator: ".")
-                        let valid = parts.count == 4 && parts.allSatisfy { part in
-                            guard let n = Int(part), (0...255).contains(n) else { return false }
-                            return true
+                        let candidate = tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let parts = candidate.split(separator: ".")
+                        let valid = parts.count == 4 && parts.allSatisfy {
+                            guard let n = Int($0) else { return false }
+                            return (0...255).contains(n)
                         }
-                        if valid {
-                            TunnelConfig.setTargetIP(value)
-                            tunnelIP = TunnelConfig.targetIP
-                            tunnelSaveMessage = "通道 IP 已儲存"
-                        } else {
+                        guard valid else {
                             tunnelSaveMessage = "通道 IP 格式錯誤，請輸入例如 10.7.0.1"
+                            showTunnelSaveMessage = true
+                            return
                         }
+                        TunnelConfig.setTargetIP(candidate)
+                        tunnelIP = TunnelConfig.targetIP
+                        vpnConfigured = true
+                        tunnelSaveMessage = "通道 IP 已套用：\\(tunnelIP)"
                         showTunnelSaveMessage = true
                     } label: {
-                        Label("儲存通道 IP", systemImage: "checkmark.circle")
-                    }''')
-    s = s.replace('''            .navigationTitle("Settings")
-            .toolbar {''',
-                  '''            .navigationTitle("設定")
-            .alert("通道 IP", isPresented: $showTunnelSaveMessage) {
-                Button("確定", role: .cancel) { }
-            } message: {
-                Text(tunnelSaveMessage)
-            }
-            .toolbar {''')
-    s = s.replace('''            .onAppear {
-                localDevVPNInstalled = LocalDevVPN.isInstalled
-            }''',
-                  '''            .onAppear {
+                        Label("儲存並套用通道 IP", systemImage: "checkmark.circle.fill")
+                    }
+
+                    Button {
+                        TunnelConfig.resetToDefault()
+                        tunnelIP = TunnelConfig.targetIP
+                        vpnConfigured = true
+                        tunnelSaveMessage = "已恢復預設通道 IP：\\(tunnelIP)"
+                        showTunnelSaveMessage = true
+                    } label: {
+                        Label("恢復預設通道 IP", systemImage: "arrow.counterclockwise")
+                    }
+                }
+'''
+
+    if section_re.search(s):
+        s = section_re.sub(replacement, s, count=1)
+    else:
+        # Fallback: insert the new sections immediately before the Privacy
+        # section if upstream wording/layout changes again.
+        privacy = s.find('                Section("隱私權")')
+        if privacy < 0:
+            privacy = s.find('                Section("Privacy")')
+        if privacy < 0:
+            raise SystemExit("Settings tunnel section not found and privacy anchor missing")
+        s = s[:privacy] + replacement + s[privacy:]
+
+    # Refresh states whenever Settings appears or DPort receives the callback.
+    s = s.replace(
+        '''            .onAppear {
                 localDevVPNInstalled = LocalDevVPN.isInstalled
                 tunnelIP = TunnelConfig.targetIP
-            }''')
-    s = s.replace('''                    Button("Done") {
-                        TunnelConfig.setTargetIP(tunnelIP)
-                        dismiss()
-                    }''',
-                  '''                    Button("完成") {
-                        TunnelConfig.setTargetIP(tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines))
-                        dismiss()
-                    }''')
-    s = s.replace('''                } header: {
-                    Text("Tunnel")
-                } footer: {
-                    Text("Connect LocalDevVPN before teleporting. Default tunnel IP is 10.7.0.1. Start a spoof on Wi‑Fi first; it can keep working on cellular afterward.")
-                }''',
-                  '''                } header: {
-                    Text("定位通道")
-                } footer: {
-                    Text("請先連線 LocalDevVPN 再使用定位。預設通道 IP 為 10.7.0.1。")
-                }''')
+            }''',
+        '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+                TunnelConfig.ensureConfigured()
+                tunnelIP = TunnelConfig.targetIP
+                vpnConfigured = LocalDevVPN.isConfigured
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .dportVPNStatusChanged)) { _ in
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+                vpnConfigured = LocalDevVPN.isConfigured
+                tunnelIP = TunnelConfig.targetIP
+            }''',
+        1
+    )
     return s
 
 rw("Locus/Features/Settings/SettingsView.swift", patch_tunnel_settings)
