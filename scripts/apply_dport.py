@@ -338,6 +338,80 @@ for swift in ROOT.joinpath("Locus").rglob("*.swift"):
 
     swift.write_text(content, encoding="utf-8")
 
+
+# 3.5) Fix current SideStore/LocalDevVPN point-to-point detection.
+# Current LocalDevVPN uses utun=10.7.1.1/32 and peer/device=10.7.0.1/32.
+# The old check incorrectly required the peer IP to be assigned locally.
+vpn_path = ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
+if vpn_path.exists():
+    vpn = vpn_path.read_text(encoding="utf-8")
+    vpn = vpn.replace(
+        '        let target = TunnelConfig.targetIP\n'
+        '        if addresses.contains(target) { return true }\n',
+        '        let target = TunnelConfig.targetIP\n'
+        '        if addresses.contains(target) { return true }\n'
+        '        // Current LocalDevVPN is point-to-point: the peer (10.7.0.1)\n'
+        '        // is not assigned to the iPhone; the utun endpoint is 10.7.1.1.\n'
+        '        if addresses.contains(where: { $0.hasPrefix("10.7.1.") }) { return true }\n'
+    )
+    vpn_path.write_text(vpn, encoding="utf-8")
+
+# 3.6) Make Save tunnel IP visibly confirm success and reject invalid IPv4.
+settings_path = ROOT / "Locus" / "Features" / "Settings" / "SettingsView.swift"
+if settings_path.exists():
+    settings = settings_path.read_text(encoding="utf-8")
+    settings = settings.replace(
+        '@State private var tunnelIP = TunnelConfig.targetIP',
+        '@State private var tunnelIP = TunnelConfig.targetIP\n    @State private var tunnelSaved = false'
+    )
+    settings = settings.replace(
+        '''                    Button("Save tunnel IP") {
+                        TunnelConfig.setTargetIP(tunnelIP)
+                    }
+''',
+        '''                    Button {
+                        let candidate = tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if isValidIPv4(candidate) {
+                            TunnelConfig.setTargetIP(candidate)
+                            tunnelIP = candidate
+                            tunnelSaved = true
+                        } else {
+                            session.lastError = "通道 IP 格式無效，請輸入 IPv4 位址，例如 10.7.0.1"
+                            tunnelSaved = false
+                        }
+                    } label: {
+                        Label(
+                            tunnelSaved ? "已儲存通道 IP" : "儲存通道 IP",
+                            systemImage: tunnelSaved ? "checkmark.circle.fill" : "checkmark"
+                        )
+                    }
+''',
+        1
+    )
+    settings = settings.replace(
+        '''    }
+}
+
+struct PlacesView: View {
+''',
+        '''    }
+
+    private func isValidIPv4(_ value: String) -> Bool {
+        let parts = value.split(separator: ".")
+        guard parts.count == 4 else { return false }
+        return parts.allSatisfy { part in
+            guard let n = Int(part), !part.isEmpty, n >= 0, n <= 255 else { return false }
+            return true
+        }
+    }
+}
+
+struct PlacesView: View {
+''',
+        1
+    )
+    settings_path.write_text(settings, encoding="utf-8")
+
 # 4) Pairing service's visible Bonjour device name.
 pair_service = ROOT / "Locus" / "Engine" / "PairOnDeviceService.swift"
 c = pair_service.read_text(encoding="utf-8")
@@ -777,4 +851,3 @@ for rel in [
             raise SystemExit(f"English UI strings remain in {rel}: {leaked}")
 
 print(f"DPort branding/localization applied: {len(TRANSLATIONS)} strings + final UI hardening.")
-
