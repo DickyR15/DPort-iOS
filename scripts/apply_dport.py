@@ -200,6 +200,13 @@ TRANSLATIONS = {
     "Connected": "已連線",
     "Not connected": "未連線",
     "idevice DVT location simulation": "idevice DVT 定位模擬",
+        "Connecting…": "連線中…",
+        "Locus advertises a pairable host. iOS connects from Developer Mode, then Locus shows a 6-digit code for you to type.": "DPort 會提供可配對的主機。iOS 會從開發者模式連線，接著 DPort 會顯示 6 位數驗證碼供你輸入。",
+        "On iOS 27, use Pair on this iPhone — no computer.": "iOS 27 可直接在此 iPhone 上配對，不需要電腦。",
+        "Privacy & Security": "隱私權與安全性",
+        "Pair with Host": "與主機配對",
+        "Pair with Locus": "與 DPort 配對",
+        "close enough": "差不多就好",
 }
 
 def swift_escape(value: str) -> str:
@@ -231,6 +238,13 @@ for swift in ROOT.joinpath("Locus").rglob("*.swift"):
     content = swift.read_text(encoding="utf-8")
     content = re.sub(r"\bLocus\b", "DPort", content)
 
+    # Also replace user-visible literals directly. This avoids relying on
+    # Localizable.strings being loaded by every Xcode-generated target/container.
+    # The shipped UI is therefore deterministically Traditional Chinese.
+    for en, zh in TRANSLATIONS.items():
+        en_esc = swift_escape(en)
+        zh_esc = swift_escape(zh)
+        content = content.replace(f'"{en_esc}"', f'"{zh_esc}"')
     # Runtime strings that are displayed through String rather than SwiftUI
     # LocalizedStringKey need an explicit localized lookup.
     runtime_literals = [
