@@ -82,6 +82,8 @@ TRANSLATIONS = {
     "On": "開",
     "Joy": "搖桿",
     "Walk": "步行",
+    "Not Spoofing": "尚未模擬定位",
+    "Reconnecting…": "正在重新連線…",
     "Run": "跑步",
     "Cycle": "自行車",
     "Drive": "駕車",
