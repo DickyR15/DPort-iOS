@@ -195,6 +195,9 @@ TRANSLATIONS = {
     "Import": "匯入",
     "Export": "匯出",
     "No track points found in GPX": "GPX 中找不到軌跡點",
+    "Connected": "已連線",
+    "Not connected": "未連線",
+    "idevice DVT location simulation": "idevice DVT 定位模擬",
 }
 
 def swift_escape(value: str) -> str:
@@ -242,6 +245,8 @@ for swift in ROOT.joinpath("Locus").rglob("*.swift"):
         "Nothing to export.",
         "No route found",
         "No track points found in GPX",
+        "Connected", "Not connected",
+        "idevice DVT location simulation",
         "Tunnel IP is invalid. Check Settings → Tunnel IP (usually 10.7.0.1).",
         "Could not read the RPPairing file. Generate one with idevice_pair in RPPairing mode.",
         "Could not open the developer tunnel. Is LocalDevVPN connected on Wi‑Fi?",
