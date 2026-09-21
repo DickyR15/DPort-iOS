@@ -209,6 +209,12 @@ TRANSLATIONS = {
         "close enough": "差不多就好",
 }
 
+def rw(path, fn):
+    p = ROOT / path
+    s = p.read_text(encoding="utf-8")
+    s2 = fn(s)
+    p.write_text(s2, encoding="utf-8")
+
 def swift_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
