@@ -134,7 +134,8 @@ rw("Locus/Features/Settings/SettingsView.swift", patch_settings)
 # Tunnel IP: explicit save button with validation and visible feedback.
 def patch_tunnel_settings(s):
     s = s.replace('@State private var tunnelIP = TunnelConfig.targetIP',
-                  '@State private var tunnelIP = TunnelConfig.targetIP\n    @State private var tunnelSaveMessage = ""\n    @State private var showTunnelSaveMessage = false')
+                  '@State private var tunnelIP = TunnelConfig.targetIP\n    @State private var tunnelSaveMessage = ""\n    @State private var showTunnelSaveMessage = false
+    @State private var vpnConfigured = LocalDevVPN.isConfigured')
     s = s.replace('''                    TextField("Device tunnel IP", text: $tunnelIP)''',
                   '''                    TextField("通道 IP", text: $tunnelIP)''')
     s = s.replace('''                    LabeledContent("Status") {
