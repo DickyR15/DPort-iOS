@@ -209,12 +209,6 @@ TRANSLATIONS = {
         "close enough": "差不多就好",
 }
 
-def rw(path, fn):
-    p = ROOT / path
-    s = p.read_text(encoding="utf-8")
-    s2 = fn(s)
-    p.write_text(s2, encoding="utf-8")
-
 def swift_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
@@ -343,136 +337,6 @@ for swift in ROOT.joinpath("Locus").rglob("*.swift"):
                 )
 
     swift.write_text(content, encoding="utf-8")
-
-
-# 3.5) Robust LocalDevVPN detection.
-# The old check treated any address in the same /24 as proof of VPN and could
-# report "Not connected" when LocalDevVPN's utun address differed from the
-# configured device endpoint. Prefer an actual utun IPv4 interface.
-def patch_localdevvpn(s):
-    start = s.index("    /// LocalDevVPN puts the tunnel network")
-    end = s.index("    static func openInstalled()", start)
-    block = '''    /// LocalDevVPN puts the tunnel network on a utun interface when connected.
-    /// The endpoint is the device-side address; it does not have to equal the
-    /// address assigned to this iPhone's utun interface.
-    static var isConnected: Bool {
-        let target = TunnelConfig.targetIP
-        let parts = target.split(separator: ".")
-        guard parts.count == 4 else { return false }
-        let prefix = parts.dropLast().joined(separator: ".") + "."
-        return ipv4TunnelInterfaceAddresses().contains { $0.hasPrefix(prefix) }
-    }
-
-'''
-    return s[:start] + block + s[end:]
-
-# Replace the address helper with a helper that only considers actual utun
-# interfaces. This prevents a Wi-Fi LAN using 10.7.0.x from being mistaken
-# for LocalDevVPN, while also handling LocalDevVPN's tunnel/device IP order.
-def patch_localdevvpn_helper(s):
-    old = '''    private static func ipv4InterfaceAddresses() -> [String] {
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return [] }
-        defer { freeifaddrs(ifaddr) }
-
-        var results: [String] = []
-        var ptr: UnsafeMutablePointer<ifaddrs>? = first
-        while let current = ptr {
-            let interface = current.pointee
-            if interface.ifa_addr.pointee.sa_family == UInt8(AF_INET) {
-                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                let nameLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-                if getnameinfo(
-                    interface.ifa_addr,
-                    nameLen,
-                    &host,
-                    socklen_t(host.count),
-                    nil,
-                    0,
-                    NI_NUMERICHOST
-                ) == 0 {
-                    results.append(String(cString: host))
-                }
-            }
-            ptr = interface.ifa_next
-        }
-        return results
-    }
-'''
-    new = '''    private static func ipv4TunnelInterfaceAddresses() -> [String] {
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return [] }
-        defer { freeifaddrs(ifaddr) }
-
-        var results: [String] = []
-        var ptr: UnsafeMutablePointer<ifaddrs>? = first
-        while let current = ptr {
-            let interface = current.pointee
-            let name = String(cString: interface.ifa_name)
-            if name.hasPrefix("utun"),
-               let addr = interface.ifa_addr,
-               addr.pointee.sa_family == UInt8(AF_INET) {
-                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                let nameLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-                if getnameinfo(
-                    addr,
-                    nameLen,
-                    &host,
-                    socklen_t(host.count),
-                    nil,
-                    0,
-                    NI_NUMERICHOST
-                ) == 0 {
-                    results.append(String(cString: host))
-                }
-            }
-            ptr = interface.ifa_next
-        }
-        return results
-    }
-'''
-    return s.replace(old,new)
-
-# Make the tunnel settings visibly acknowledge a successful save and refresh
-# VPN status whenever the app returns to the foreground.
-def patch_settings_tunnel(s):
-    s=s.replace('@State private var localDevVPNInstalled = LocalDevVPN.isInstalled',
-                '@State private var localDevVPNInstalled = LocalDevVPN.isInstalled\n    @State private var tunnelConnected = LocalDevVPN.isConnected\n    @State private var showTunnelSaved = false')
-    s=s.replace('Text(LocalDevVPN.isConnected ? "Connected" : "Not connected")',
-                'Text(tunnelConnected ? "Connected" : "Not connected")')
-    s=s.replace('foregroundStyle(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)',
-                'foregroundStyle(tunnelConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)')
-    s=s.replace('''                    Button("Save tunnel IP") {
-                        TunnelConfig.setTargetIP(tunnelIP)
-                    }''',
-                '''                    Button("Save tunnel IP") {
-                        TunnelConfig.setTargetIP(tunnelIP)
-                        tunnelConnected = LocalDevVPN.isConnected
-                        showTunnelSaved = true
-                    }''')
-    s=s.replace('''            .onAppear {
-                localDevVPNInstalled = LocalDevVPN.isInstalled
-            }''',
-                '''            .onAppear {
-                localDevVPNInstalled = LocalDevVPN.isInstalled
-                tunnelConnected = LocalDevVPN.isConnected
-            }
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .active {
-                    localDevVPNInstalled = LocalDevVPN.isInstalled
-                    tunnelConnected = LocalDevVPN.isConnected
-                }
-            }
-            .alert("已儲存通道 IP", isPresented: $showTunnelSaved) {
-                Button("確定", role: .cancel) { }
-            } message: {
-                Text(tunnelIP)
-            }''')
-    return s
-
-rw("Locus/Support/LocalDevVPN.swift", patch_localdevvpn)
-
-rw("Locus/Features/Settings/SettingsView.swift", patch_settings_tunnel)
 
 # 4) Pairing service's visible Bonjour device name.
 pair_service = ROOT / "Locus" / "Engine" / "PairOnDeviceService.swift"
@@ -753,6 +617,74 @@ for rel in [
     )
     p.write_text(content, encoding="utf-8")
 
+
+
+# 9A) Stable tunnel-IP editor patch.
+def patch_tunnel_ip_editor(path: Path):
+    content = path.read_text(encoding="utf-8")
+    content = content.replace(
+        "    @State private var tunnelIP = TunnelConfig.targetIP\n",
+        "    @State private var tunnelIP = TunnelConfig.targetIP\n"
+        "    @State private var tunnelSaveMessage = \"\"\n"
+        "    @State private var showTunnelSaveMessage = false\n"
+    )
+    old = """                    Button("儲存通道 IP") {
+                        TunnelConfig.setTargetIP(tunnelIP)
+                    }"""
+    new = """                    Button {
+                        let value = tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let parts = value.split(separator: ".")
+                        let valid = parts.count == 4 && parts.allSatisfy { part in
+                            guard let number = Int(part) else { return false }
+                            return (0...255).contains(number)
+                        }
+                        if valid {
+                            TunnelConfig.setTargetIP(value)
+                            tunnelIP = TunnelConfig.targetIP
+                            tunnelSaveMessage = "通道 IP 已儲存：\\(tunnelIP)"
+                        } else {
+                            tunnelSaveMessage = "通道 IP 格式錯誤，請輸入例如 10.7.0.1"
+                        }
+                        showTunnelSaveMessage = true
+                    } label: {
+                        Label("儲存通道 IP", systemImage: "checkmark.circle.fill")
+                    }"""
+    if old in content:
+        content = content.replace(old, new, 1)
+    else:
+        content = content.replace(
+            """                    Button("Save tunnel IP") {
+                        TunnelConfig.setTargetIP(tunnelIP)
+                    }""",
+            new,
+            1
+        )
+    content = content.replace(
+        '            .navigationTitle("設定")\n',
+        '''            .navigationTitle("設定")
+            .alert("通道 IP", isPresented: $showTunnelSaveMessage) {
+                Button("確定", role: .cancel) { }
+            } message: {
+                Text(tunnelSaveMessage)
+            }
+''',
+        1
+    )
+    content = content.replace(
+        '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+            }''',
+        '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+                tunnelIP = TunnelConfig.targetIP
+            }''',
+        1
+    )
+    return content
+
+settings_path = ROOT / "Locus/Features/Settings/SettingsView.swift"
+if settings_path.exists():
+    settings_path.write_text(patch_tunnel_ip_editor(settings_path), encoding="utf-8")
 
 # 9) Absolute final pass for the first-run / pairing UI.
 # Apply exact literals after all branding/localization transforms so upstream
