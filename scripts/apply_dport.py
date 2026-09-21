@@ -465,6 +465,13 @@ def patch_settings_tunnel(s):
     return s
 
 rw("Locus/Support/LocalDevVPN.swift", patch_localdevvpn)
+
+
+def rw(path, fn):
+    p = ROOT / path
+    s = p.read_text(encoding="utf-8")
+    s2 = fn(s)
+    p.write_text(s2, encoding="utf-8")
 rw("Locus/Support/LocalDevVPN.swift", patch_localdevvpn_helper)
 rw("Locus/Features/Settings/SettingsView.swift", patch_settings_tunnel)
 
