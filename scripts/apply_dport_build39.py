@@ -138,9 +138,9 @@ def patch_tunnel_settings(s):
     # English and already-localized forms to keep the patch idempotent.
     s = s.replace(
         '@State private var tunnelIP = TunnelConfig.targetIP',
-        '@State private var tunnelIP = TunnelConfig.targetIP\\n'
-        '    @State private var tunnelSaveMessage = ""\\n'
-        '    @State private var showTunnelSaveMessage = false\\n'
+        '@State private var tunnelIP = TunnelConfig.targetIP\n'
+        '    @State private var tunnelSaveMessage = ""\n'
+        '    @State private var showTunnelSaveMessage = false\n'
         '    @State private var vpnConfigured = LocalDevVPN.isConfigured',
         1
     )
@@ -148,12 +148,12 @@ def patch_tunnel_settings(s):
     # Replace the entire upstream Tunnel section. This is more reliable than
     # matching individual localized labels after the first patcher runs.
     section_re = re.compile(
-        r'\\n                Section \\{\\n'
+        r'\n                Section \\{\n'
         r'                    TextField\\("(?:Device tunnel IP|裝置通道 IP|通道 IP)", text: \\$tunnelIP\\).*?'
-        r'\\n                \\} header: \\{\\n'
-        r'                    Text\\("(?:Tunnel|通道|定位通道)"\\)\\n'
-        r'                \\} footer: \\{\\n'
-        r'                    Text\\(".*?10\\.7\\.0\\.1.*?"\\)\\n'
+        r'\n                \\} header: \\{\n'
+        r'                    Text\\("(?:Tunnel|通道|定位通道)"\\)\n'
+        r'                \\} footer: \\{\n'
+        r'                    Text\\(".*?10\\.7\\.0\\.1.*?"\\)\n'
         r'                \\}',
         re.S
     )
@@ -523,7 +523,7 @@ rw("Locus/Features/Settings/PairOnDeviceView.swift", patch_pair_view)
 def patch_setup_view(s):
     reps = {
         'Text("Locus")':'Text("DPort")',
-        'Text("Teleport your location.\\\\nNo computer required.")':'Text("模擬你的定位位置。\\\\n不需要電腦。")',
+        'Text("Teleport your location.\\\nNo computer required.")':'Text("模擬你的定位位置。\\\n不需要電腦。")',
         'Text("A short setup — about two minutes.")':'Text("簡單設定，大約需要兩分鐘。")',
         'primaryButton("Get started")':'primaryButton("開始設定")',
         'Text("Connect this iPhone")':'Text("連線此 iPhone")',
