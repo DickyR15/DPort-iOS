@@ -73,11 +73,13 @@ jobs:
           cp -R "$APP_PATH" Payload/DPort.app
 
           # Build a standard IPA (ZIP container) and verify it before upload.
-          ditto -c -k --sequesterRsrc --keepParent Payload DPort-iOS-unsigned.ipa
+          # Use the standard ZIP utility for maximum compatibility with iOS Files.
+          # The IPA itself is a ZIP archive whose root must contain Payload/.
+          (cd Payload && zip -qry ../DPort-iOS-unsigned.ipa DPort.app)
           unzip -t DPort-iOS-unsigned.ipa
           unzip -l DPort-iOS-unsigned.ipa | head -25
 
-          # A second copy with a .zip extension is easier to recognize/extract.
+          # Provide a clearly named copy for users who want to extract it manually.
           cp DPort-iOS-unsigned.ipa DPort-iOS-unsigned.zip
           shasum -a 256 DPort-iOS-unsigned.ipa > DPort-iOS-unsigned.sha256
 
