@@ -238,6 +238,26 @@ for swift in ROOT.joinpath("Locus").rglob("*.swift"):
     content = swift.read_text(encoding="utf-8")
     content = re.sub(r"\bLocus\b", "DPort", content)
 
+    # Explicitly replace long Settings/pairing literals from upstream.
+    content = content.replace(
+        '"On iOS 27, use Pair on this iPhone — no computer. Locus advertises a pairable host; confirm the 6-digit code under Settings › Privacy & Security › Developer Mode › Pair with Host. On older iOS, import an RPPairing file from idevice_pair (not a SideStore lockdown .mobiledevicepairing). LiveContainer: enable Fix File Picker on Locus, or use Paste / Share → LiveContainer → Locus."',
+        '"iOS 27 可直接在此 iPhone 上配對，不需要電腦。DPort 會提供可配對的主機，請前往「設定」›「隱私權與安全性」›「開發者模式」›「與主機配對」確認 6 位數驗證碼。較舊版本 iOS 請從 idevice_pair 匯入 RPPairing 檔案（不是 SideStore 的 lockdown .mobiledevicepairing）。若在 LiveContainer 中檔案選擇器無法使用，請在 DPort 啟用「修正檔案選擇器」，或使用「貼上／分享」→ LiveContainer → DPort。"'
+    )
+    content = content.replace(
+        '"Import an RPPairing file from idevice_pair (not a SideStore lockdown .mobiledevicepairing). If the file picker fails (common in LiveContainer), enable Fix File Picker on the app, share the file into LiveContainer → Locus, or copy the plist and use Paste."',
+        '"請從 idevice_pair 匯入 RPPairing 檔案（不是 SideStore 的 lockdown .mobiledevicepairing）。如果檔案選擇器失效（LiveContainer 常見），請在 DPort 啟用「修正檔案選擇器」，將檔案分享至 LiveContainer → DPort，或複製 plist 後使用「貼上」。"'
+    )
+    content = content.replace('Text("Developer pairing")', 'Text("開發者配對")')
+    content = content.replace('Text("No computer needed")', 'Text("不需要電腦")')
+    content = content.replace(
+        'Text("Locus advertises a pairable host. iOS connects from Developer Mode, then Locus shows a 6-digit code for you to type.")',
+        'Text("DPort 會提供可配對的主機。iOS 會從「開發者模式」連線，接著 DPort 會顯示 6 位數驗證碼供你輸入。")'
+    )
+    # Remove the upstream Locus easter-egg footer.
+    content = re.sub(r'\n\s*Section \{\n\s*Button \{\n\s*showNameEasterEgg = true.*?\n\s*\} \n', '\n', content, flags=re.S)
+    content = content.replace('    @State private var showNameEasterEgg = false\n', '')
+    content = content.replace('            .fullScreenCover(isPresented: $showNameEasterEgg) {\n                LocusEasterEggView()\n            }\n', '')
+
     # Also replace user-visible literals directly. This avoids relying on
     # Localizable.strings being loaded by every Xcode-generated target/container.
     # The shipped UI is therefore deterministically Traditional Chinese.
