@@ -131,6 +131,80 @@ def patch_settings(s):
 
 rw("Locus/Features/Settings/SettingsView.swift", patch_settings)
 
+# Tunnel IP: explicit save button with validation and visible feedback.
+def patch_tunnel_settings(s):
+    s = s.replace('@State private var tunnelIP = TunnelConfig.targetIP',
+                  '@State private var tunnelIP = TunnelConfig.targetIP\n    @State private var tunnelSaveMessage = ""\n    @State private var showTunnelSaveMessage = false')
+    s = s.replace('''                    TextField("Device tunnel IP", text: $tunnelIP)''',
+                  '''                    TextField("通道 IP", text: $tunnelIP)''')
+    s = s.replace('''                    LabeledContent("Status") {
+                        Text(LocalDevVPN.isConnected ? "Connected" : "Not connected")
+                            .foregroundStyle(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)
+                    }
+                    Button("Save tunnel IP") {
+                        TunnelConfig.setTargetIP(tunnelIP)
+                    }''',
+                  '''                    LabeledContent("連線狀態") {
+                        Text(LocalDevVPN.isConnected ? "已連線" : "未連線")
+                            .foregroundStyle(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)
+                    }
+                    Button {
+                        let value = tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let parts = value.split(separator: ".")
+                        let valid = parts.count == 4 && parts.allSatisfy { part in
+                            guard let n = Int(part), (0...255).contains(n) else { return false }
+                            return true
+                        }
+                        if valid {
+                            TunnelConfig.setTargetIP(value)
+                            tunnelIP = TunnelConfig.targetIP
+                            tunnelSaveMessage = "通道 IP 已儲存"
+                        } else {
+                            tunnelSaveMessage = "通道 IP 格式錯誤，請輸入例如 10.7.0.1"
+                        }
+                        showTunnelSaveMessage = true
+                    } label: {
+                        Label("儲存通道 IP", systemImage: "checkmark.circle")
+                    }''')
+    s = s.replace('''            .navigationTitle("Settings")
+            .toolbar {''',
+                  '''            .navigationTitle("設定")
+            .alert("通道 IP", isPresented: $showTunnelSaveMessage) {
+                Button("確定", role: .cancel) { }
+            } message: {
+                Text(tunnelSaveMessage)
+            }
+            .toolbar {''')
+    s = s.replace('''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+            }''',
+                  '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+                tunnelIP = TunnelConfig.targetIP
+            }''')
+    s = s.replace('''                    Button("Done") {
+                        TunnelConfig.setTargetIP(tunnelIP)
+                        dismiss()
+                    }''',
+                  '''                    Button("完成") {
+                        TunnelConfig.setTargetIP(tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines))
+                        dismiss()
+                    }''')
+    s = s.replace('''                } header: {
+                    Text("Tunnel")
+                } footer: {
+                    Text("Connect LocalDevVPN before teleporting. Default tunnel IP is 10.7.0.1. Start a spoof on Wi‑Fi first; it can keep working on cellular afterward.")
+                }''',
+                  '''                } header: {
+                    Text("定位通道")
+                } footer: {
+                    Text("請先連線 LocalDevVPN 再使用定位。預設通道 IP 為 10.7.0.1。")
+                }''')
+    return s
+
+rw("Locus/Features/Settings/SettingsView.swift", patch_tunnel_settings)
+
+
 write("Locus/Features/Map/CoordinateInputView.swift", r'''import SwiftUI
 import CoreLocation
 
