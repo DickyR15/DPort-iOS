@@ -92,7 +92,7 @@ jobs:
         with:
           name: DPort-iOS-unsigned
           path: |
-            DPort-iOS-unsigned.ipa
-            DPort-iOS-unsigned.zip
-            DPort-iOS-unsigned.sha256
+            src-build/DPort-iOS-unsigned.ipa
+            src-build/DPort-iOS-unsigned.zip
+            src-build/DPort-iOS-unsigned.sha256
           if-no-files-found: error
