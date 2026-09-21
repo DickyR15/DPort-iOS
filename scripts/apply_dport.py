@@ -617,5 +617,163 @@ for rel in [
     )
     p.write_text(content, encoding="utf-8")
 
+
+# 9) Absolute final pass for the first-run / pairing UI.
+# Apply exact literals after all branding/localization transforms so upstream
+# wording cannot leak English into the shipped DPort onboarding screens.
+ABSOLUTE_UI = {
+    "Pair on this iPhone": "在此 iPhone 上配對",
+    "Close": "關閉",
+    "No computer needed": "不需要電腦",
+    "Start pairing": "開始配對",
+    "Try again": "再試一次",
+    "Continue": "繼續",
+    "Done": "完成",
+    "One more app": "還需要一個 App",
+    "Install": "安裝",
+    "Installed": "已安裝",
+    "Connect": "連線",
+    "First teleport on Wi‑Fi": "首次傳送請使用 Wi‑Fi",
+    "Open LocalDevVPN": "開啟 LocalDevVPN",
+    "Get LocalDevVPN": "取得 LocalDevVPN",
+    "I’ve connected it — continue": "我已連線，繼續",
+    "Connect this iPhone": "連接這台 iPhone",
+    "Get started": "開始使用",
+    "Import pairing file": "匯入配對檔案",
+    "Paste from clipboard": "從剪貼簿貼上",
+    "Developer pairing": "開發者配對",
+    "RPPairing file installed": "RPPairing 檔案已安裝",
+    "No pairing file": "尚未安裝配對檔案",
+    "Import RPPairing file…": "匯入 RPPairing 檔案…",
+    "Paste RPPairing from clipboard": "從剪貼簿貼上 RPPairing",
+    "Remove pairing file": "移除配對檔案",
+    "Device tunnel IP": "裝置通道 IP",
+    "Status": "狀態",
+    "Connected": "已連線",
+    "Not connected": "未連線",
+    "Save tunnel IP": "儲存通道 IP",
+    "Privacy": "隱私權",
+    "About": "關於",
+    "Version": "版本",
+    "Engine": "定位引擎",
+    "Settings": "設定",
+    "Favorites": "我的最愛",
+    "Recents": "最近使用",
+    "Places": "地點",
+    "Name": "名稱",
+    "Cancel": "取消",
+    "Save": "儲存",
+    "Delete": "刪除",
+    "Rename": "重新命名",
+    "OK": "好",
+    "Search places": "搜尋地點",
+    "Clear and dismiss keyboard": "清除並關閉鍵盤",
+    "Current location": "目前位置",
+    "Road route": "道路路線",
+    "Routes": "路線",
+    "Follow route": "沿路線移動",
+    "Import GPX": "匯入 GPX",
+    "Export GPX": "匯出 GPX",
+    "Stop": "停止",
+    "Teleport": "傳送定位",
+    "Walk": "步行",
+    "Run": "跑步",
+    "Cycle": "自行車",
+    "Drive": "駕車",
+    "Movement joystick": "移動搖桿",
+    "Remove Pin": "移除圖釘",
+    "Selected pin": "已選取圖釘",
+    "Map pin": "地圖圖釘",
+    "Locus advertises a pairable host. iOS connects from Developer Mode, then Locus shows a 6-digit code for you to type.": "DPort 會提供可配對的主機。iOS 會從「開發者模式」連線，接著 DPort 會顯示 6 位數驗證碼供你輸入。",
+    "Keep Locus open. You’ll leave briefly for Settings, then come back with a code.": "請保持 DPort 開啟。你會暫時離開前往「設定」，再回到這裡查看驗證碼。",
+    "Tap Start pairing and allow Local Network + Location when asked.": "點選「開始配對」，依提示允許「區域網路」與「定位」權限。",
+    "Allow notifications — the code can appear as a banner over Settings.": "允許通知，驗證碼可以在「設定」畫面上方以橫幅顯示。",
+    "Open Settings › Privacy & Security › Developer Mode › Pair with Locus → Pair.": "開啟「設定」›「隱私權與安全性」›「開發者模式」›「與 DPort 配對」→「配對」。",
+    "Enter your unlock passcode first. On the next prompt, type Locus’s 6-digit code.": "先輸入 iPhone 解鎖密碼，下一個提示再輸入 DPort 的 6 位數驗證碼。",
+    "Follow these steps": "請依照以下步驟操作",
+    "Ready when you are": "準備就緒",
+    "Waiting for Settings…": "等待設定…",
+    "In Developer Mode tap Pair with Locus → Pair.": "在「開發者模式」中點選「與 DPort 配對」→「配對」。",
+    "iPhone connected": "iPhone 已連線",
+    "Generating your 6-digit code…": "正在產生 6 位數驗證碼…",
+    "Enter this code in Settings": "請在設定中輸入此驗證碼",
+    "Second prompt only — after your unlock passcode.": "請先輸入解鎖密碼，再輸入此驗證碼。",
+    "Paired": "已配對",
+    "Pairing failed": "配對失敗",
+    "Type the code above into the second Settings prompt.": "請在「設定」第二個提示中輸入上方驗證碼。",
+    "Connected — code coming next.": "已連線，驗證碼即將顯示。",
+    "Waiting for iOS to connect… don’t force-quit Locus.": "等待 iOS 連線…請勿強制關閉 DPort。",
+    "No computer needed": "不需要電腦",
+    "Teleport your location.\nNo computer required.": "傳送你的定位。\n不需要電腦。",
+    "A short setup — about two minutes.": "簡單設定，大約需要兩分鐘。",
+    "LocalDevVPN is installed. Open it to turn on the private tunnel Locus needs, then come back here.": "LocalDevVPN 已安裝。請開啟它以啟用 DPort 所需的私人通道，再回到這裡。",
+    "LocalDevVPN creates a private tunnel Locus uses to talk to your phone’s location system. Install it, turn it on, then you’re ready to teleport.": "LocalDevVPN 會建立 DPort 用來連線手機定位系統的私人通道。安裝並開啟後，就可以開始傳送定位。",
+    "LocalDevVPN is on this iPhone.": "LocalDevVPN 已安裝在此 iPhone。",
+    "Tap below to open it and start the tunnel. You’ll bounce back to Locus.": "點選下方按鈕開啟 App 並啟動通道，完成後會回到 DPort。",
+    "Get LocalDevVPN from the App Store.": "從 App Store 取得 LocalDevVPN。",
+    "Open it and turn the VPN on. Leave the default IP alone.": "開啟 App 並啟用 VPN，預設 IP 請保持不變。",
+    "Start your first teleport while on Wi‑Fi. After that, it can keep working on cellular.": "第一次傳送定位請先使用 Wi‑Fi。完成後，即使切換到行動網路仍可繼續運作。",
+    "On a Mac, run idevice_pair and create an RPPairing file.": "在 Mac 上執行 idevice_pair 並建立 RPPairing 檔案。",
+    "AirDrop / Share into Locus, or copy the plist text.": "透過 AirDrop／分享傳送至 DPort，或複製 plist 文字。",
+    "Tap Import, or Paste from clipboard if the picker doesn’t work (LiveContainer).": "點選「匯入」，若檔案選擇器無法使用（LiveContainer），請改用「從剪貼簿貼上」。",
+    "Locus needs a one-time pairing so it can set your location. You’ll confirm a short code in Settings.": "DPort 需要進行一次性配對，才能設定你的定位。請在「設定」中確認驗證碼。",
+    "Fully on-device. Favorites and recents stay in UserDefaults. No analytics, no accounts, nothing uploaded.": "完全在裝置端處理。我的最愛與最近使用會保存在 UserDefaults，不進行分析、不需要帳號，也不會上傳資料。",
+    "Connect LocalDevVPN": "連線 LocalDevVPN",
+    "Connect LocalDevVPN before teleporting. Default tunnel IP is 10.7.0.1. Start a spoof on Wi‑Fi first; it can keep working on cellular afterward.": "傳送定位前請先連線 LocalDevVPN。預設通道 IP 為 10.7.0.1。第一次請先在 Wi‑Fi 上啟動模擬定位，之後可繼續使用行動網路。",
+    "idevice DVT location simulation": "Apple DVT 定位模擬",
+    "Locus is free and open source (MIT). Location injection uses the MIT-licensed idevice FFI.": "DPort 為免費的開放原始碼軟體（MIT 授權）。定位注入功能使用採 MIT 授權的 idevice FFI。",
+    "locus, n. — a place. From the Latin for where you are.": ""
+}
+
+def _absolute_ui_pass(path: Path):
+    content = path.read_text(encoding="utf-8")
+    for en, zh in ABSOLUTE_UI.items():
+        content = content.replace(f'"{en}"', f'"{zh}"')
+    content = re.sub(
+        r'\n\s*Section\s*\{\s*Button\s*\{\s*showNameEasterEgg\s*=\s*true\s*\}\s*label:\s*\{\s*Text\("locus, n\. — a place\. From the Latin for where you are\."\).*?\n\s*\}\s*',
+        '\n',
+        content,
+        flags=re.S,
+    )
+    content = re.sub(r'\n\s*@State\s+private\s+var\s+showNameEasterEgg\s*=\s*false\s*', '\n', content)
+    content = re.sub(
+        r'\n\s*\.fullScreenCover\(isPresented:\s*\$showNameEasterEgg\)\s*\{.*?\n\s*\}',
+        '',
+        content,
+        flags=re.S,
+    )
+    path.write_text(content, encoding="utf-8")
+
+for rel in [
+    "Locus/Features/Settings/PairOnDeviceView.swift",
+    "Locus/Features/Setup/SetupFlowView.swift",
+    "Locus/Features/Settings/SettingsView.swift",
+]:
+    p = ROOT / rel
+    if p.exists():
+        _absolute_ui_pass(p)
+
+egg = ROOT / "Locus" / "Features" / "Settings" / "LocusEasterEggView.swift"
+if egg.exists():
+    egg.unlink()
+
+critical_english = [
+    "Start pairing", "One more app", "Install", "Connect",
+    "First teleport on Wi‑Fi",
+    "Open Settings › Privacy & Security › Developer Mode › Pair with Locus → Pair.",
+    "locus, n. — a place. From the Latin for where you are.",
+]
+for rel in [
+    "Locus/Features/Settings/PairOnDeviceView.swift",
+    "Locus/Features/Setup/SetupFlowView.swift",
+    "Locus/Features/Settings/SettingsView.swift",
+]:
+    p = ROOT / rel
+    if p.exists():
+        source = p.read_text(encoding="utf-8")
+        leaked = [s for s in critical_english if s in source]
+        if leaked:
+            raise SystemExit(f"English UI strings remain in {rel}: {leaked}")
+
 print(f"DPort branding/localization applied: {len(TRANSLATIONS)} strings + final UI hardening.")
 
