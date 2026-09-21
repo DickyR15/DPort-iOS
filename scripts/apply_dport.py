@@ -758,10 +758,10 @@ if egg.exists():
     egg.unlink()
 
 critical_english = [
-    "Start pairing", "One more app", "Install", "Connect",
-    "First teleport on Wi‑Fi",
-    "Open Settings › Privacy & Security › Developer Mode › Pair with Locus → Pair.",
-    "locus, n. — a place. From the Latin for where you are.",
+    '"Start pairing"', '"One more app"', '"Install"', '"Connect"',
+    '"First teleport on Wi‑Fi"',
+    '"Open Settings › Privacy & Security › Developer Mode › Pair with Locus → Pair."',
+    '"locus, n. — a place. From the Latin for where you are."',
 ]
 for rel in [
     "Locus/Features/Settings/PairOnDeviceView.swift",
