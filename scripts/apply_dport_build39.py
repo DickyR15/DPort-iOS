@@ -146,6 +146,19 @@ def patch_tunnel_settings(s):
         1
     )
 
+    # Normalize SettingsView state declarations. Keep exactly one copy even
+    # if the upstream file or an earlier patch already added it.
+    lines = s.splitlines()
+    seen_vpn = False
+    normalized = []
+    for line in lines:
+        if line.strip() == '@State private var vpnConfigured = LocalDevVPN.isConfigured':
+            if seen_vpn:
+                continue
+            seen_vpn = True
+        normalized.append(line)
+    s = "\n".join(normalized) + ("\n" if s.endswith("\n") else "")
+
     # Replace the entire upstream Tunnel section. This is more reliable than
     # matching individual localized labels after the first patcher runs.
     section_re = re.compile(
