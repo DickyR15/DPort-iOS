@@ -740,14 +740,21 @@ if plist.exists():
         # Existing Info.plist already has URL types on upstream/Locus; insert
         # only a second URL declaration before the closing plist dictionary.
         s=s.replace(marker,insert+marker,1)
+    # iOS requires LocalDevVPN to be declared in LSApplicationQueriesSchemes
+    # before UIApplication.canOpenURL("localdevvpn://") can reliably detect
+    # the installed app. Do not depend on the exact upstream plist ordering.
     if "<string>localdevvpn</string>" not in s:
-        marker="\t</array>\n\t<key>NSBonjourServices</key>"
         query='''\t<key>LSApplicationQueriesSchemes</key>
 \t<array>
 \t\t<string>localdevvpn</string>
 \t</array>
 '''
-        s=s.replace(marker, "\t</array>\n"+query+"\t<key>NSBonjourServices</key>",1)
+        if "<key>LSApplicationQueriesSchemes</key>" in s:
+            raise SystemExit("LSApplicationQueriesSchemes exists but localdevvpn is missing")
+        marker="</dict>\n</plist>"
+        if marker not in s:
+            raise SystemExit("Info.plist closing marker not found")
+        s=s.replace(marker, query+marker, 1)
     plist.write_text(s,encoding="utf-8")
 
 # New version without the digit 4.
