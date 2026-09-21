@@ -14,8 +14,9 @@ def write(rel, content):
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8")
 
-# Build 39.
+# DPort iOS UI release — Build 39, version 6.9.2.
 project = PROJECT.read_text(encoding="utf-8")
+project = project.replace('MARKETING_VERSION: "6.8.2"', 'MARKETING_VERSION: "6.9.2"')
 project = project.replace('CURRENT_PROJECT_VERSION: "35"', 'CURRENT_PROJECT_VERSION: "39"')
 project = project.replace('CURRENT_PROJECT_VERSION: "38"', 'CURRENT_PROJECT_VERSION: "39"')
 PROJECT.write_text(project, encoding="utf-8")
