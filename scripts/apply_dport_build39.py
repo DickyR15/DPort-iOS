@@ -149,7 +149,7 @@ def patch_tunnel_settings(s):
     if state_anchor in s:
         s = s.replace(
             state_anchor,
-            state_anchor + '\\n    @State private var vpnConfigured = LocalDevVPN.isConfigured',
+            state_anchor + '\n    @State private var vpnConfigured = LocalDevVPN.isConfigured',
             1
         )
     else:
