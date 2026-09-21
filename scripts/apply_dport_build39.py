@@ -134,41 +134,37 @@ rw("Locus/Features/Settings/SettingsView.swift", patch_settings)
 
 # Tunnel IP: explicit save button with validation and visible feedback.
 def patch_tunnel_settings(s):
-    # This script runs after apply_dport.py, so most visible literals have
-    # already been translated to Traditional Chinese. Match both upstream
-    # English and already-localized forms to keep the patch idempotent.
-    s = s.replace(
-        '@State private var tunnelIP = TunnelConfig.targetIP',
-        '@State private var tunnelIP = TunnelConfig.targetIP\n'
-        '    @State private var tunnelSaveMessage = ""\n'
-        '    @State private var showTunnelSaveMessage = false\n'
-        '    @State private var vpnConfigured = LocalDevVPN.isConfigured',
-        1
-    )
-
-    # Normalize SettingsView state declarations. Keep exactly one copy even
-    # if the upstream file or an earlier patch already added it.
+    # Remove any previous copies first; this script may run after another
+    # branding pass that already injected the same state property.
     lines = s.splitlines()
-    seen_vpn = False
-    normalized = []
-    for line in lines:
-        if line.strip() == '@State private var vpnConfigured = LocalDevVPN.isConfigured':
-            if seen_vpn:
-                continue
-            seen_vpn = True
-        normalized.append(line)
-    s = "\n".join(normalized) + ("\n" if s.endswith("\n") else "")
+    lines = [
+        line for line in lines
+        if line.strip() != '@State private var vpnConfigured = LocalDevVPN.isConfigured'
+        and line.strip() != '@State private var vpnConfigured = false'
+    ]
+    s = "\n".join(lines) + ("\n" if s.endswith("\n") else "")
 
-    # Replace the entire upstream Tunnel section. This is more reliable than
-    # matching individual localized labels after the first patcher runs.
+    # Add exactly one state property next to the existing LocalDevVPN state.
+    state_anchor = '    @State private var localDevVPNInstalled = LocalDevVPN.isInstalled'
+    if state_anchor in s:
+        s = s.replace(
+            state_anchor,
+            state_anchor + '\\n    @State private var vpnConfigured = LocalDevVPN.isConfigured',
+            1
+        )
+    else:
+        raise SystemExit("SettingsView LocalDevVPN state anchor not found")
+
+    # Replace the entire upstream Tunnel section. Match both the upstream
+    # English labels and the already-localized labels to stay idempotent.
     section_re = re.compile(
-        r'\n                Section \\{\n'
-        r'                    TextField\\("(?:Device tunnel IP|裝置通道 IP|通道 IP)", text: \\$tunnelIP\\).*?'
-        r'\n                \\} header: \\{\n'
-        r'                    Text\\("(?:Tunnel|通道|定位通道)"\\)\n'
-        r'                \\} footer: \\{\n'
-        r'                    Text\\(".*?10\\.7\\.0\\.1.*?"\\)\n'
-        r'                \\}',
+        r'\n                Section \{\n'
+        r'                    TextField\("(?:Device tunnel IP|裝置通道 IP|通道 IP)", text: \$tunnelIP\).*?'
+        r'\n                \} header: \{\n'
+        r'                    Text\("(?:Tunnel|通道|定位通道)"\)\n'
+        r'                \} footer: \{\n'
+        r'                    Text\(".*?10\.7\.0\.1.*?"\)\n'
+        r'                \}',
         re.S
     )
 
@@ -238,7 +234,7 @@ def patch_tunnel_settings(s):
                             TunnelConfig.setTargetIP(candidate)
                             tunnelIP = TunnelConfig.targetIP
                             vpnConfigured = true
-                            tunnelSaveMessage = "通道 IP 已套用：\\(tunnelIP)"
+                            tunnelSaveMessage = "通道 IP 已套用：\(tunnelIP)"
                             showTunnelSaveMessage = true
                         }
 
@@ -262,7 +258,7 @@ def patch_tunnel_settings(s):
                         TunnelConfig.setTargetIP(candidate)
                         tunnelIP = TunnelConfig.targetIP
                         vpnConfigured = true
-                        tunnelSaveMessage = "通道 IP 已套用：\\(tunnelIP)"
+                        tunnelSaveMessage = "通道 IP 已套用：\(tunnelIP)"
                         showTunnelSaveMessage = true
                     } label: {
                         Label("儲存並套用通道 IP", systemImage: "checkmark.circle.fill")
@@ -272,7 +268,7 @@ def patch_tunnel_settings(s):
                         TunnelConfig.resetToDefault()
                         tunnelIP = TunnelConfig.targetIP
                         vpnConfigured = true
-                        tunnelSaveMessage = "已恢復預設通道 IP：\\(tunnelIP)"
+                        tunnelSaveMessage = "已恢復預設通道 IP：\(tunnelIP)"
                         showTunnelSaveMessage = true
                     } label: {
                         Label("恢復預設通道 IP", systemImage: "arrow.counterclockwise")
@@ -283,8 +279,6 @@ def patch_tunnel_settings(s):
     if section_re.search(s):
         s = section_re.sub(replacement, s, count=1)
     else:
-        # Fallback: insert the new sections immediately before the Privacy
-        # section if upstream wording/layout changes again.
         privacy = s.find('                Section("隱私權")')
         if privacy < 0:
             privacy = s.find('                Section("Privacy")')
@@ -292,7 +286,6 @@ def patch_tunnel_settings(s):
             raise SystemExit("Settings tunnel section not found and privacy anchor missing")
         s = s[:privacy] + replacement + s[privacy:]
 
-    # Refresh states whenever Settings appears or DPort receives the callback.
     s = s.replace(
         '''            .onAppear {
                 localDevVPNInstalled = LocalDevVPN.isInstalled
@@ -311,6 +304,20 @@ def patch_tunnel_settings(s):
             }''',
         1
     )
+
+    # Final hard guarantee: exactly one declaration.
+    lines = s.splitlines()
+    seen = False
+    normalized = []
+    for line in lines:
+        if line.strip() == '@State private var vpnConfigured = LocalDevVPN.isConfigured':
+            if seen:
+                continue
+            seen = True
+        normalized.append(line)
+    s = "\n".join(normalized) + ("\n" if s.endswith("\n") else "")
+    if s.count('@State private var vpnConfigured = LocalDevVPN.isConfigured') != 1:
+        raise SystemExit("Failed to create exactly one vpnConfigured state declaration")
     return s
 
 rw("Locus/Features/Settings/SettingsView.swift", patch_tunnel_settings)
