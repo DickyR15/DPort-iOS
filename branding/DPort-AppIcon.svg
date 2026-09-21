@@ -15,43 +15,11 @@
       <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000000" flood-opacity=".42"/>
     </filter>
   </defs>
-
   <rect x="18" y="18" width="988" height="988" rx="210" fill="url(#bg)" stroke="#2E668F" stroke-width="8"/>
-
   <g filter="url(#shadow)">
-    <!-- D-shaped locator mark -->
-    <path d="M265 270
-             C265 190 330 125 410 125
-             H625
-             C790 125 900 255 900 420
-             C900 585 790 715 625 715
-             H250
-             V390
-             C250 335 285 292 335 275
-             L265 330 Z"
-          fill="url(#d)"/>
-    <!-- inner negative space -->
-    <path d="M455 285
-             H600
-             C685 285 735 340 735 420
-             C735 500 685 555 600 555
-             H455 Z"
-          fill="#031426"/>
-    <!-- locator pin -->
-    <path d="M575 315
-             C510 315 462 365 462 425
-             C462 480 520 535 575 600
-             C630 535 688 480 688 425
-             C688 365 640 315 575 315 Z"
-          fill="url(#d)"/>
+    <path d="M265 270 C265 190 330 125 410 125 H625 C790 125 900 255 900 420 C900 585 790 715 625 715 H250 V390 C250 335 285 292 335 275 L265 330 Z" fill="url(#d)"/>
+    <path d="M455 285 H600 C685 285 735 340 735 420 C735 500 685 555 600 555 H455 Z" fill="#031426"/>
+    <path d="M575 315 C510 315 462 365 462 425 C462 480 520 535 575 600 C630 535 688 480 688 425 C688 365 640 315 575 315 Z" fill="url(#d)"/>
     <circle cx="575" cy="420" r="35" fill="#031426"/>
   </g>
-
-  <text x="512" y="850"
-        text-anchor="middle"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="164"
-        font-weight="700"
-        letter-spacing="-7"
-        fill="#FFFFFF">DPort</text>
 </svg>
