@@ -515,5 +515,107 @@ for rel in [
     if p.exists():
         p.write_text(patch_final_ui(p), encoding="utf-8")
 
+
+# 8) Upstream-proof final pass: the branding pass above changes "Locus" to
+#    "DPort" before the localization pass.  Keep the post-branding strings
+#    here so onboarding/settings cannot regress when upstream wording changes.
+POST_BRAND_UI = {
+    "Connect this iPhone": "連接這台 iPhone",
+    "No computer needed": "不需要電腦",
+    "Follow these steps": "請依照以下步驟操作",
+    "Keep DPort open. You’ll leave briefly for Settings, then come back with a code.": "請保持 DPort 開啟。你會暫時離開前往「設定」，再回到這裡查看驗證碼。",
+    "Tap Start pairing and allow Local Network + Location when asked.": "點選「開始配對」，依提示允許「區域網路」與「定位」權限。",
+    "Allow notifications — the code can appear as a banner over Settings.": "允許通知，驗證碼可以在「設定」畫面上方以橫幅顯示。",
+    "Open Settings › Privacy & Security › Developer Mode › Pair with DPort → Pair.": "開啟「設定」›「隱私權與安全性」›「開發者模式」›「與 DPort 配對」→「配對」。",
+    "Enter your unlock passcode first. On the next prompt, type DPort’s 6-digit code.": "先輸入 iPhone 解鎖密碼，下一個提示再輸入 DPort 的 6 位數驗證碼。",
+    "If the code isn’t here yet": "還沒看到驗證碼嗎？",
+    "Keep the app listening while you confirm in Developer Mode. Don’t force-quit. If “Pair with DPort” vanishes, stop/start pairing and reopen Developer Mode.": "在開發者模式確認配對時，請保持 DPort 持續監聽，不要強制關閉 App。若「與 DPort 配對」消失，請停止後重新開始配對，再重新開啟開發者模式。",
+    "Ready when you are": "準備就緒",
+    "Waiting for Settings…": "等待設定…",
+    "In Developer Mode tap Pair with DPort → Pair.": "在「開發者模式」中點選「與 DPort 配對」→「配對」。",
+    "iPhone connected": "iPhone 已連線",
+    "Generating your 6-digit code…": "正在產生 6 位數驗證碼…",
+    "Enter this code in Settings": "請在設定中輸入此驗證碼",
+    "Second prompt only — after your unlock passcode.": "請先輸入解鎖密碼，再輸入此驗證碼。",
+    "Paired": "已配對",
+    "Pairing failed": "配對失敗",
+    "Next we’ll set up LocalDevVPN.": "接下來設定 LocalDevVPN。",
+    "Start pairing": "開始配對",
+    "Try again": "再試一次",
+    "Continue": "繼續",
+    "Done": "完成",
+    "Type the code above into the second Settings prompt.": "請在「設定」第二個提示中輸入上方驗證碼。",
+    "Connected — code coming next.": "已連線，驗證碼即將顯示。",
+    "Waiting for iOS to connect… don’t force-quit DPort.": "等待 iOS 連線…請勿強制關閉 DPort。",
+    "Teleport your location.\\nNo computer required.": "傳送你的定位。\\n不需要電腦。",
+    "A short setup — about two minutes.": "簡單設定，大約需要兩分鐘。",
+    "Get started": "開始使用",
+    "Import pairing file": "匯入配對檔案",
+    "Paste from clipboard": "從剪貼簿貼上",
+    "On a Mac, run idevice_pair and create an RPPairing file.": "在 Mac 上執行 idevice_pair 並建立 RPPairing 檔案。",
+    "AirDrop / Share into DPort, or copy the plist text.": "透過 AirDrop／分享傳送至 DPort，或複製 plist 文字。",
+    "Tap Import, or Paste from clipboard if the picker doesn’t work (LiveContainer).": "點選「匯入」，若檔案選擇器無法使用（LiveContainer），請改用「從剪貼簿貼上」。",
+    "Connect LocalDevVPN": "連線 LocalDevVPN",
+    "One more app": "還需要一個 App",
+    "Connect": "連線",
+    "Install": "安裝",
+    "Installed": "已安裝",
+    "LocalDevVPN is on this iPhone.": "LocalDevVPN 已安裝在此 iPhone。",
+    "Tap below to open it and start the tunnel. You’ll bounce back to DPort.": "點選下方按鈕開啟 App 並啟動通道，完成後會回到 DPort。",
+    "Get LocalDevVPN from the App Store.": "從 App Store 取得 LocalDevVPN。",
+    "Open it and turn the VPN on. Leave the default IP alone.": "開啟 App 並啟用 VPN，預設 IP 請保持不變。",
+    "Start your first teleport while on Wi‑Fi. After that, it can keep working on cellular.": "第一次傳送定位請先使用 Wi‑Fi。完成後，即使切換到行動網路仍可繼續運作。",
+    "Open LocalDevVPN": "開啟 LocalDevVPN",
+    "Get LocalDevVPN": "取得 LocalDevVPN",
+    "I’ve connected it — continue": "我已連線，繼續",
+    "No pairing file": "尚未安裝配對檔案",
+    "Import RPPairing file…": "匯入 RPPairing 檔案…",
+    "Paste RPPairing from clipboard": "從剪貼簿貼上 RPPairing",
+    "Remove pairing file": "移除配對檔案",
+    "On iOS 27, use Pair on this iPhone — no computer. DPort advertises a pairable host; confirm the 6-digit code under Settings › Privacy & Security › Developer Mode › Pair with Host. On older iOS, import an RPPairing file from idevice_pair (not a SideStore lockdown .mobiledevicepairing). LiveContainer: enable Fix File Picker on DPort, or use Paste / Share → LiveContainer → DPort.": "iOS 27 可直接在此 iPhone 上配對，不需要電腦。DPort 會提供可配對的主機，請前往「設定」›「隱私權與安全性」›「開發者模式」›「與主機配對」確認 6 位數驗證碼。較舊版本 iOS 請從 idevice_pair 匯入 RPPairing 檔案（不是 SideStore 的 lockdown .mobiledevicepairing）。若在 LiveContainer 中檔案選擇器無法使用，請在 DPort 啟用「修正檔案選擇器」，或使用「貼上／分享」→ LiveContainer → DPort。",
+    "Import an RPPairing file from idevice_pair (not a SideStore lockdown .mobiledevicepairing). If the file picker fails (common in LiveContainer), enable Fix File Picker on the app, share the file into LiveContainer → DPort, or copy the plist and use Paste.": "從 idevice_pair 匯入 RPPairing 檔案（不是 SideStore 的 lockdown .mobiledevicepairing）。若檔案選擇器失敗（LiveContainer 常見），請在 App 啟用「修正檔案選擇器」、將檔案分享至 LiveContainer → DPort，或複製 plist 後使用「貼上」。",
+    "Device tunnel IP": "裝置通道 IP",
+    "Status": "狀態",
+    "Connected": "已連線",
+    "Not connected": "未連線",
+    "Save tunnel IP": "儲存通道 IP",
+    "Get LocalDevVPN (App Store)": "取得 LocalDevVPN（App Store）",
+    "Connect LocalDevVPN before teleporting. Default tunnel IP is 10.7.0.1. Start a spoof on Wi‑Fi first; it can keep working on cellular afterward.": "傳送定位前請先連線 LocalDevVPN。預設通道 IP 為 10.7.0.1。第一次請先在 Wi‑Fi 上啟動模擬定位，之後可繼續使用行動網路。",
+    "Fully on-device. Favorites and recents stay in UserDefaults. No analytics, no accounts, nothing uploaded.": "完全在裝置端處理。我的最愛與最近使用會保存在 UserDefaults，不進行分析、不需要帳號，也不會上傳資料。",
+    "About": "關於",
+    "Version": "版本",
+    "Engine": "定位引擎",
+    "idevice DVT location simulation": "idevice DVT 定位模擬",
+    "DPort is free and open source (MIT). Location injection uses the MIT-licensed idevice FFI.": "DPort 為免費的開放原始碼軟體（MIT 授權）。定位注入功能使用採 MIT 授權的 idevice FFI。",
+}
+
+for rel in [
+    "Locus/Features/Settings/PairOnDeviceView.swift",
+    "Locus/Features/Setup/SetupFlowView.swift",
+    "Locus/Features/Settings/SettingsView.swift",
+]:
+    p = ROOT / rel
+    if not p.exists():
+        continue
+    content = p.read_text(encoding="utf-8")
+    for en, zh in POST_BRAND_UI.items():
+        content = content.replace(f'"{en}"', f'"{zh}"')
+    # Remove the upstream Locus easter-egg footer by its literal, including
+    # lowercase "locus"; it is not part of DPort's UI.
+    content = re.sub(
+        r'\n\s*Section\s*\{\s*Button\s*\{\s*showNameEasterEgg\s*=\s*true\s*\}\s*label:\s*\{\s*Text\("locus, n\. — a place\. From the Latin for where you are\."\).*?\n\s*\}\s*\n\s*\}',
+        '\n',
+        content,
+        flags=re.S,
+    )
+    content = re.sub(r'\n\s*@State\s+private\s+var\s+showNameEasterEgg\s*=\s*false\s*', '\n', content)
+    content = re.sub(
+        r'\n\s*\.fullScreenCover\(isPresented:\s*\$showNameEasterEgg\)\s*\{.*?\n\s*\}',
+        '',
+        content,
+        flags=re.S,
+    )
+    p.write_text(content, encoding="utf-8")
+
 print(f"DPort branding/localization applied: {len(TRANSLATIONS)} strings + final UI hardening.")
 
