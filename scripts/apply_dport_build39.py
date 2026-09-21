@@ -134,34 +134,50 @@ rw("Locus/Features/Settings/SettingsView.swift", patch_settings)
 
 # Tunnel IP: explicit save button with validation and visible feedback.
 def patch_tunnel_settings(s):
-    # LocalDevVPN owns the VPN configuration. DPort only reports the real
-    # installed/connected state and opens the appropriate LocalDevVPN screen.
-    s = s.replace(
+    # Replace the upstream Tunnel section entirely. Users should never have
+    # to enter or save a tunnel IP; LocalDevVPN owns that configuration.
+    tunnel_re = re.compile(
+        r'''(?ms)^                Section \\{\\n
+                    TextField\\("Device tunnel IP", text: \\$tunnelIP\\).*?
+                \\} header: \\{\\n
+                    Text\\("Tunnel"\\)\\n
+                \\} footer: \\{\\n
+                    Text\\("Connect LocalDevVPN before teleporting\\. Default tunnel IP is 10\\.7\\.0\\.1\\. Start a spoof on Wi‑Fi first; it can keep working on cellular afterward\\."\\)\\n
+                \\}\\n'''
+    )
+    s, removed = tunnel_re.subn("", s, count=1)
+
+    # Also remove an earlier DPort tunnel variant if present.
+    old_tunnel_re = re.compile(
+        r'''(?ms)^                Section \\{\\n
+                    TextField\\("(?:裝置通道 IP|通道 IP)", text: \\$tunnelIP\\).*?
+                \\} header: \\{\\n
+                    Text\\("(?:通道|定位通道)"\\).*?
+                \\}\\n'''
+    )
+    s = old_tunnel_re.sub("", s, count=1)
+
+    # Remove obsolete tunnel state declarations.
+    for line in (
         '    @State private var vpnConfigured = LocalDevVPN.isConfigured\\n',
-        ''
-    )
-    s = s.replace(
         '    @State private var tunnelSaveMessage = ""\\n',
-        ''
-    )
-    s = s.replace(
         '    @State private var showTunnelSaveMessage = false\\n',
-        ''
+    ):
+        s = s.replace(line, "")
+
+    # Remove the old tunnel IP initialization but keep the VPN install state.
+    s = s.replace(
+        """            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+                tunnelIP = TunnelConfig.targetIP
+            }""",
+        """            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+            }""",
+        1
     )
 
-    section_re = re.compile(
-        r'\\n                Section \\{\\n'
-        r'                    TextField\\("(?:Device tunnel IP|裝置通道 IP|通道 IP)", text: \\$tunnelIP\\).*?'
-        r'\\n                \\} header: \\{\\n'
-        r'                    Text\\("(?:Tunnel|通道|定位通道)"\\)\\n'
-        r'                \\} footer: \\{\\n'
-        r'                    Text\\(".*?10\\.7\\.0\\.1.*?"\\)\\n'
-        r'                \\}',
-        re.S
-    )
-
-    replacement = r'''
-                Section("VPN 連線") {
+    replacement = r'''                Section("VPN 連線") {
                     LabeledContent("LocalDevVPN") {
                         Text(
                             LocalDevVPN.isConnected
@@ -176,7 +192,11 @@ def patch_tunnel_settings(s):
                     }
 
                     Button {
-                        LocalDevVPN.openOrInstall()
+                        if LocalDevVPN.isInstalled {
+                            LocalDevVPN.openInstalled()
+                        } else {
+                            LocalDevVPN.openAppStore()
+                        }
                     } label: {
                         Label(
                             LocalDevVPN.isConnected
@@ -184,11 +204,9 @@ def patch_tunnel_settings(s):
                                 : (LocalDevVPN.isInstalled
                                     ? "連線 LocalDevVPN"
                                     : "安裝 LocalDevVPN"),
-                            systemImage: LocalDevVPN.isConnected
-                                ? "checkmark.shield.fill"
-                                : (LocalDevVPN.isInstalled
-                                    ? "lock.shield.fill"
-                                    : "arrow.down.app.fill")
+                            systemImage: LocalDevVPN.isInstalled
+                                ? "lock.shield.fill"
+                                : "arrow.down.app.fill"
                         )
                     }
 
@@ -197,36 +215,21 @@ def patch_tunnel_settings(s):
                             .foregroundStyle(LocusTheme.statusGood)
                     }
                 }
+
 '''
-
-    if section_re.search(s):
-        s = section_re.sub(replacement, s, count=1)
+    # If the VPN section from the previous patch exists, replace it; otherwise
+    # insert it immediately before Privacy.
+    vpn_re = re.compile(r'(?ms)^                Section\("VPN 連線"\) \{.*?^                \}\n\n')
+    if vpn_re.search(s):
+        s = vpn_re.sub(replacement, s, count=1)
     else:
-        vpn_re = re.compile(
-            r'\\n                Section\\("VPN 連線"\\) \\{.*?\\n                \\}\\n'
-            r'(?:\\n                Section\\("進階通道設定"\\) \\{.*?\\n                \\}\\n)?',
-            re.S
-        )
-        if vpn_re.search(s):
-            s = vpn_re.sub(replacement, s, count=1)
-        else:
-            privacy = s.find('                Section("隱私權")')
-            if privacy < 0:
-                privacy = s.find('                Section("Privacy")')
-            if privacy < 0:
-                raise SystemExit("VPN section not found and privacy anchor missing")
-            s = s[:privacy] + replacement + s[privacy:]
+        privacy = s.find('                Section("隱私權")')
+        if privacy < 0:
+            privacy = s.find('                Section("Privacy")')
+        if privacy < 0:
+            raise SystemExit("Privacy section anchor not found")
+        s = s[:privacy] + replacement + s[privacy:]
 
-    s = s.replace(
-        """            .onAppear {
-                localDevVPNInstalled = LocalDevVPN.isInstalled
-                tunnelIP = TunnelConfig.targetIP
-            }""",
-        """            .onAppear {
-                localDevVPNInstalled = LocalDevVPN.isInstalled
-            }""",
-        1
-    )
     return s
 
 rw("Locus/Features/Settings/SettingsView.swift", patch_tunnel_settings)
