@@ -72,6 +72,8 @@ rw("Locus/Engine/SpoofSession.swift",
 
 # Settings: explicit pairing state + diagnostics.
 def patch_settings(s):
+    s = s.replace('@State private var showPairOnDevice = false',
+                  '@State private var showPairOnDevice = false\n    @State private var showDiagnostics = false')
     s = s.replace('@State private var showNameEasterEgg = false',
                   '@State private var showNameEasterEgg = false\n    @State private var showDiagnostics = false')
     s = s.replace('Label("Pair on this iPhone", systemImage:',
