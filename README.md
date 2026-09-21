@@ -10,7 +10,7 @@ Use **Actions → DPort iOS Build → Run workflow** to build manually.
 
 The generated artifact is named **DPort-iOS-unsigned** and contains:
 
-`DPort-iOS-unsigned.ipa`
+`DPort-6.9.2-Build39-TW.ipa`
 
 ## Base project
 
@@ -23,8 +23,8 @@ Locus uses Apple developer location simulation / on-device developer tunnel mech
 
 - App name: DPort
 - Bundle ID: `com.dicky.dport`
-- Marketing version: 6.8.2
-- Build number: 35
+- Marketing version: 6.9.2
+- Build number: 39
 - UI localization: 繁體中文（台灣）
 - Brand: Dicky / DPort
 
