@@ -9,6 +9,11 @@ def rw(rel, transform):
     s = p.read_text(encoding="utf-8")
     p.write_text(transform(s), encoding="utf-8")
 
+def write(rel, content):
+    p = ROOT / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
+
 # Build 39.
 project = PROJECT.read_text(encoding="utf-8")
 project = project.replace('CURRENT_PROJECT_VERSION: "35"', 'CURRENT_PROJECT_VERSION: "39"')
