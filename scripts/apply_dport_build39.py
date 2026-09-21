@@ -134,16 +134,27 @@ rw("Locus/Features/Settings/SettingsView.swift", patch_settings)
 
 # Tunnel IP: explicit save button with validation and visible feedback.
 def patch_tunnel_settings(s):
-    # Keep VPN status derived from the real LocalDevVPN state; do not add
-    # another @State property that can collide with upstream changes.
-    for decl in [
-        '@State private var vpnConfigured = LocalDevVPN.isConfigured',
-        '@State private var tunnelSaveMessage = ""',
-        '@State private var showTunnelSaveMessage = false',
-    ]:
-        s = s.replace("    " + decl + "\n", "")
-        s = s.replace(decl + "\n", "")
+    # LocalDevVPN itself owns VPN configuration. DPort only detects whether
+    # the app is installed/connected and opens LocalDevVPN when requested.
+    # Do not expose the tunnel IP as a normal user setting.
+    s = s.replace(
+        '    @State private var vpnConfigured = LocalDevVPN.isConfigured\n',
+        ''
+    )
+    s = s.replace(
+        '    @State private var tunnelSaveMessage = ""\n',
+        ''
+    )
+    s = s.replace(
+        '    @State private var showTunnelSaveMessage = false\n',
+        ''
+    )
 
+    # Replace the entire tunnel/settings block with a simple LocalDevVPN card.
+    # It intentionally distinguishes:
+    #   not installed -> App Store
+    #   installed + not connected -> open LocalDevVPN
+    #   connected -> connected
     section_re = re.compile(
         r'\n                Section \{\n'
         r'                    TextField\("(?:Device tunnel IP|裝置通道 IP|通道 IP)", text: \$tunnelIP\).*?'
@@ -158,76 +169,42 @@ def patch_tunnel_settings(s):
     replacement = r'''
                 Section("VPN 連線") {
                     LabeledContent("LocalDevVPN") {
-                        Text(LocalDevVPN.isConnected
-                             ? "已連線"
-                             : (LocalDevVPN.isConfigured ? "已設定，尚未連線" : "尚未設定"))
-                            .foregroundStyle(
-                                LocalDevVPN.isConnected
-                                    ? LocusTheme.statusGood
-                                    : (LocalDevVPN.isConfigured ? .secondary : LocusTheme.statusWarn)
-                            )
-                    }
-
-                    LabeledContent("裝置通道") {
-                        Text(TunnelConfig.targetIP)
-                            .font(.system(.body, design: .monospaced))
+                        Text(
+                            !LocalDevVPN.isInstalled
+                                ? "尚未安裝"
+                                : (LocalDevVPN.isConnected ? "已連線" : "已安裝，尚未連線")
+                        )
+                        .foregroundStyle(
+                            LocalDevVPN.isConnected
+                                ? LocusTheme.statusGood
+                                : (!LocalDevVPN.isInstalled ? LocusTheme.statusWarn : .secondary)
+                        )
                     }
 
                     Button {
-                        TunnelConfig.ensureConfigured()
-                        LocalDevVPN.autoConfigureAndConnect()
+                        LocalDevVPN.openOrInstall()
                     } label: {
                         Label(
-                            LocalDevVPN.isConfigured
-                                ? "開啟並連線 VPN"
-                                : "自動設定並連線",
-                            systemImage: "lock.shield.fill"
+                            !LocalDevVPN.isInstalled
+                                ? "安裝 LocalDevVPN"
+                                : (LocalDevVPN.isConnected ? "開啟 LocalDevVPN" : "開啟並連線 VPN"),
+                            systemImage: LocalDevVPN.isConnected
+                                ? "checkmark.shield.fill"
+                                : "lock.shield.fill"
                         )
                     }
 
                     if LocalDevVPN.isConnected {
-                        Label("VPN 通道正常", systemImage: "checkmark.shield.fill")
+                        Label("VPN 通道正常", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(LocusTheme.statusGood)
-                    } else if !LocalDevVPN.isInstalled {
-                        Text("尚未安裝 LocalDevVPN。點選上方按鈕可前往 App Store。")
+                    } else if LocalDevVPN.isInstalled {
+                        Text("請在 LocalDevVPN 中啟用連線。連線完成後返回 DPort，狀態會自動更新。")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("一般情況不需要手動設定 IP，DPort 會使用 LocalDevVPN 的預設裝置通道。")
+                        Text("尚未安裝 LocalDevVPN。點選上方按鈕即可前往 App Store。")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                    }
-                }
-
-                Section("進階通道設定") {
-                    TextField("通道 IP", text: $tunnelIP)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                    LabeledContent("目前狀態") {
-                        Text(LocalDevVPN.isConnected ? "已連線" : "未連線")
-                            .foregroundStyle(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)
-                    }
-
-                    Button {
-                        let candidate = tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let parts = candidate.split(separator: ".")
-                        let valid = parts.count == 4 && parts.allSatisfy { part in
-                            guard let n = Int(part) else { return false }
-                            return (0...255).contains(n)
-                        }
-                        guard valid else { return }
-                        TunnelConfig.setTargetIP(candidate)
-                        tunnelIP = TunnelConfig.targetIP
-                    } label: {
-                        Label("儲存並套用通道 IP", systemImage: "checkmark.circle.fill")
-                    }
-
-                    Button {
-                        TunnelConfig.resetToDefault()
-                        tunnelIP = TunnelConfig.targetIP
-                    } label: {
-                        Label("恢復預設通道 IP", systemImage: "arrow.counterclockwise")
                     }
                 }
 '''
@@ -235,13 +212,24 @@ def patch_tunnel_settings(s):
     if section_re.search(s):
         s = section_re.sub(replacement, s, count=1)
     else:
-        privacy = s.find('                Section("隱私權")')
-        if privacy < 0:
-            privacy = s.find('                Section("Privacy")')
-        if privacy < 0:
-            raise SystemExit("Settings tunnel section not found and privacy anchor missing")
-        s = s[:privacy] + replacement + s[privacy:]
+        # Also support the previously patched VPN card.
+        vpn_re = re.compile(
+            r'\n                Section\("VPN 連線"\) \{.*?\n                \}\n'
+            r'(?:\n                Section\("進階通道設定"\) \{.*?\n                \}\n)?',
+            re.S
+        )
+        if vpn_re.search(s):
+            s = vpn_re.sub(replacement, s, count=1)
+        else:
+            privacy = s.find('                Section("隱私權")')
+            if privacy < 0:
+                privacy = s.find('                Section("Privacy")')
+            if privacy < 0:
+                raise SystemExit("VPN section not found and privacy anchor missing")
+            s = s[:privacy] + replacement + s[privacy:]
 
+    # No manual tunnel configuration is needed. Keep only the installed state
+    # used elsewhere by the settings page and refresh it when returning.
     s = s.replace(
         """            .onAppear {
                 localDevVPNInstalled = LocalDevVPN.isInstalled
@@ -249,12 +237,11 @@ def patch_tunnel_settings(s):
             }""",
         """            .onAppear {
                 localDevVPNInstalled = LocalDevVPN.isInstalled
-                TunnelConfig.ensureConfigured()
-                tunnelIP = TunnelConfig.targetIP
             }""",
         1
     )
     return s
+
 rw("Locus/Features/Settings/SettingsView.swift", patch_tunnel_settings)
 
 
