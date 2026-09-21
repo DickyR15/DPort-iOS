@@ -258,7 +258,11 @@ for swift in ROOT.joinpath("Locus").rglob("*.swift"):
     content = content.replace('    @State private var showNameEasterEgg = false\n', '')
     content = content.replace('            .fullScreenCover(isPresented: $showNameEasterEgg) {\n                LocusEasterEggView()\n            }\n', '')
 
-    # Also replace user-visible literals directly. This avoids relying on
+    # Remove the upstream Locus easter-egg footer exactly as written.
+    content = content.replace("                Section {\n                    Button {\n                        showNameEasterEgg = true\n                    } label: {\n                        Text(\"locus, n. — a place. From the Latin for where you are.\")\n                            .font(.footnote.italic())\n                            .foregroundStyle(.secondary)\n                            .multilineTextAlignment(.center)\n                            .frame(maxWidth: .infinity)\n                            .padding(.vertical, 4)\n                    }\n                    .buttonStyle(.plain)\n                    .listRowBackground(Color.clear)\n                    .listRowSeparator(.hidden)\n                }\n", "")
+    content = content.replace('    @State private var showNameEasterEgg = false\n', '')
+    content = content.replace('            .fullScreenCover(isPresented: $showNameEasterEgg) {\n                LocusEasterEggView()\n            }\n', '')
+\n    # Also replace user-visible literals directly. This avoids relying on
     # Localizable.strings being loaded by every Xcode-generated target/container.
     # The shipped UI is therefore deterministically Traditional Chinese.
     for en, zh in TRANSLATIONS.items():
