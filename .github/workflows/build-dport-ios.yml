@@ -31,16 +31,18 @@ jobs:
           mkdir -p src-build
           rsync -a --exclude='.git' upstream-locus/ src-build/
 
-      - name: Apply DPort branding
+      - name: Apply DPort branding and localization
         working-directory: src-build
-        run: python3 ../scripts/apply_dport.py
+        run: |
+          set -euo pipefail
+          python3 ../scripts/apply_dport.py
+          python3 ../scripts/apply_dport_build39.py
 
       - name: Install DPort app icon
         run: |
           set -euo pipefail
           mkdir -p src-build/Locus/Resources/Assets.xcassets/AppIcon.appiconset
-          rsvg-convert -w 1024 -h 1024 branding/DPort-AppIcon.svg \
-            -o src-build/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          rsvg-convert -w 1024 -h 1024 branding/DPort-AppIcon.svg -o src-build/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           test -s src-build/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
       - name: Generate Xcode project
@@ -51,50 +53,32 @@ jobs:
         working-directory: src-build
         run: |
           set -euo pipefail
-          xcodebuild \
-            -project DPort.xcodeproj \
-            -scheme DPort \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            DEVELOPMENT_TEAM= \
-            build
+          xcodebuild             -project DPort.xcodeproj             -scheme DPort             -configuration Release             -destination 'generic/platform=iOS'             -derivedDataPath build/DerivedData             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             DEVELOPMENT_TEAM=             build
 
-      - name: Package IPA
+      - name: Package Build 39 IPA
         working-directory: src-build
         run: |
           set -euo pipefail
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/DPort.app"
           test -d "$APP_PATH"
-          rm -rf Payload DPort-iOS-unsigned.ipa DPort-iOS-unsigned.zip DPort-iOS-unsigned.sha256
+          rm -rf Payload DPort-6.8.2-Build39-TW.ipa DPort-6.8.2-Build39-TW.zip DPort-6.8.2-Build39-TW.sha256
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/DPort.app
+          zip -qry DPort-6.8.2-Build39-TW.ipa Payload/DPort.app
+          unzip -t DPort-6.8.2-Build39-TW.ipa
+          cp DPort-6.8.2-Build39-TW.ipa DPort-6.8.2-Build39-TW.zip
+          shasum -a 256 DPort-6.8.2-Build39-TW.ipa > DPort-6.8.2-Build39-TW.sha256
+          test -s DPort-6.8.2-Build39-TW.ipa
+          test -s DPort-6.8.2-Build39-TW.zip
+          test -s DPort-6.8.2-Build39-TW.sha256
+          ls -lh DPort-6.8.2-Build39-TW.ipa DPort-6.8.2-Build39-TW.zip DPort-6.8.2-Build39-TW.sha256
 
-          # Build a standard IPA (ZIP container) and verify it before upload.
-          # Use the standard ZIP utility for maximum compatibility with iOS Files.
-          # The IPA itself is a ZIP archive whose root must contain Payload/DPort.app/.
-          zip -qry DPort-iOS-unsigned.ipa Payload/DPort.app
-          unzip -t DPort-iOS-unsigned.ipa
-          unzip -l DPort-iOS-unsigned.ipa | head -25
-
-          # Provide a clearly named copy for users who want to extract it manually.
-          cp DPort-iOS-unsigned.ipa DPort-iOS-unsigned.zip
-          shasum -a 256 DPort-iOS-unsigned.ipa > DPort-iOS-unsigned.sha256
-
-          # Final integrity checks.
-          test -s DPort-iOS-unsigned.ipa
-          test -s DPort-iOS-unsigned.zip
-          test -s DPort-iOS-unsigned.sha256
-          ls -lh DPort-iOS-unsigned.ipa DPort-iOS-unsigned.zip DPort-iOS-unsigned.sha256
-
-      - name: Upload DPort IPA
+      - name: Upload DPort Build 39
         uses: actions/upload-artifact@v7
         with:
-          name: DPort-iOS-unsigned
+          name: DPort-6.8.2-Build39-TW
           path: |
-            src-build/DPort-iOS-unsigned.ipa
-            src-build/DPort-iOS-unsigned.zip
-            src-build/DPort-iOS-unsigned.sha256
+            src-build/DPort-6.8.2-Build39-TW.ipa
+            src-build/DPort-6.8.2-Build39-TW.zip
+            src-build/DPort-6.8.2-Build39-TW.sha256
           if-no-files-found: error
