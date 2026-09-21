@@ -330,7 +330,7 @@ if icon_svg.exists():
     icon_sizes = [20, 29, 40, 58, 60, 76, 80, 87, 120, 152, 167, 180, 1024]
     for size in icon_sizes:
         subprocess.run([
-            "magick", str(icon_svg), "-background", "none",
+            "magick", str(icon_svg), "-font", "/System/Library/Fonts/Supplemental/Arial.ttf", "-background", "none",
             "-resize", f"{size}x{size}", str(appicon / f"AppIcon-{size}.png")
         ], check=True)
     (appicon / "Contents.json").write_text(r'''{
