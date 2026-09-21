@@ -21,8 +21,8 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_26.6.app
           xcodebuild -version
 
-      - name: Install XcodeGen
-        run: brew install xcodegen imagemagick librsvg
+      - name: Install build tools
+        run: brew install xcodegen librsvg
 
       - name: Fetch upstream Locus source
         run: |
@@ -34,9 +34,6 @@ jobs:
       - name: Apply DPort branding
         working-directory: src-build
         run: python3 ../scripts/apply_dport.py
-
-      - name: Install SVG renderer
-        run: brew install librsvg
 
       - name: Install DPort app icon
         run: |
@@ -71,17 +68,31 @@ jobs:
           set -euo pipefail
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/DPort.app"
           test -d "$APP_PATH"
-          rm -rf Payload
+          rm -rf Payload DPort-iOS-unsigned.ipa DPort-iOS-unsigned.zip DPort-iOS-unsigned.sha256
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/DPort.app
-          zip -qry ../DPort-iOS-unsigned.ipa Payload
-          cd ..
+
+          # Build a standard IPA (ZIP container) and verify it before upload.
+          ditto -c -k --sequesterRsrc --keepParent Payload DPort-iOS-unsigned.ipa
+          unzip -t DPort-iOS-unsigned.ipa
           unzip -l DPort-iOS-unsigned.ipa | head -25
-          ls -lh DPort-iOS-unsigned.ipa
+
+          # A second copy with a .zip extension is easier to recognize/extract.
+          cp DPort-iOS-unsigned.ipa DPort-iOS-unsigned.zip
+          shasum -a 256 DPort-iOS-unsigned.ipa > DPort-iOS-unsigned.sha256
+
+          # Final integrity checks.
+          test -s DPort-iOS-unsigned.ipa
+          test -s DPort-iOS-unsigned.zip
+          test -s DPort-iOS-unsigned.sha256
+          ls -lh DPort-iOS-unsigned.ipa DPort-iOS-unsigned.zip DPort-iOS-unsigned.sha256
 
       - name: Upload DPort IPA
         uses: actions/upload-artifact@v7
         with:
           name: DPort-iOS-unsigned
-          path: DPort-iOS-unsigned.ipa
+          path: |
+            DPort-iOS-unsigned.ipa
+            DPort-iOS-unsigned.zip
+            DPort-iOS-unsigned.sha256
           if-no-files-found: error
