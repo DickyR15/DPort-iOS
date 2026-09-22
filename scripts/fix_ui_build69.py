@@ -11,6 +11,10 @@ if not ROOT_VIEW.exists():
 
 s = ROOT_VIEW.read_text(encoding="utf-8")
 
+# Normalize upstream MapHomeView initializer across Locus revisions.
+# Build 70 does not use a showCoordinates binding.
+s = re.sub(r'MapHomeView\\(\\s*showCoordinates:\\s*\\$showCoordinates\\s*\\)', 'MapHomeView()', s)
+
 # Build 70 UI: match the requested DPort layout.
 # - Joystick is permanently on the LEFT side of the bottom tray.
 # - Travel modes are a labeled 4-column row on the RIGHT.
