@@ -32,6 +32,7 @@ new_block = r'''struct BottomControlsView: View {
     @EnvironmentObject private var pairing: PairingStore
     @Binding var showSettings: Bool
     @Binding var showPlaces: Bool
+    @Binding var showCoordinates: Bool
 
     private let trayShape = RoundedRectangle(cornerRadius: 28, style: .continuous)
 
@@ -93,11 +94,7 @@ new_block = r'''struct BottomControlsView: View {
                             showPlaces = true
                         }
                         trayIcon("mappin.and.ellipse", title: "標記") {
-                            if let pin = session.pin {
-                                session.teleport(to: pin, pairing: pairing)
-                            } else {
-                                session.lastError = "請先點選地圖放置圖釘。"
-                            }
+                            showCoordinates = true
                         }
                         trayIcon("ellipsis", title: "更多") {
                             showPlaces = true
