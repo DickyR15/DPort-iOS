@@ -220,7 +220,7 @@ for old, new in [
     ("com.chrismack.locus", "com.dicky.dport"),
     ("PRODUCT_NAME: Locus", "PRODUCT_NAME: DPort"),
     ('MARKETING_VERSION: "1.0.2"', 'MARKETING_VERSION: "6.8.2"'),
-    ('CURRENT_PROJECT_VERSION: "3"', 'CURRENT_PROJECT_VERSION: "35"'),
+    ('CURRENT_PROJECT_VERSION: "3"', 'CURRENT_PROJECT_VERSION: "68"'),
 ]:
     project = project.replace(old, new)
 project = project.replace("      - path: AppIcon.icon", "      - path: Assets.xcassets")
