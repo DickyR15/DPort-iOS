@@ -359,13 +359,12 @@ struct DiagnosticsView: View {
 
                     Button {
                         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
-                        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
                         let lines = [
                             "DPort 診斷資訊",
                             "配對：\(pairing.hasPairingFile ? "已配對" : "未配對")",
                             "LocalDevVPN：\(vpnConnected ? "已連線" : "未連線")",
                             "模擬定位：\(session.isSpoofing ? "啟用" : "未啟用")",
-                            "版本：\(version) (\(build))"
+                            "版本：\(version)"
                         ]
                         UIPasteboard.general.string = lines.joined(separator: "\n")
                     } label: {
