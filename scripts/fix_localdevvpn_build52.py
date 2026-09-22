@@ -214,4 +214,134 @@ if project.exists():
     s = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "56"', s)
     project.write_text(s, encoding="utf-8")
 
-print("DPort Build 56 LocalDevVPN fix applied.")
+# Build 57 — make LocalDevVPN status a real three-state check.
+# iOS does not expose a supported API for querying whether another app is
+# installed. canOpenURL() is unreliable here (it can return false while
+# UIApplication.open() succeeds), so the UI must not call that result
+# "uninstalled". The only definitive check is the result of open(enableURL).
+# Persist only the last confirmed result; a failed open clears the flag.
+settings = ROOT / "Locus" / "Features" / "Settings" / "SettingsView.swift"
+if settings.exists():
+    ss = settings.read_text(encoding="utf-8")
+
+    ss = ss.replace(
+        '@State private var localDevVPNInstalled = LocalDevVPN.isInstalled',
+        '@AppStorage("dport.localdevvpn.installed") private var localDevVPNInstalled = false',
+        1
+    )
+
+    old_status = '''                    LabeledContent("Status") {
+                        Text(LocalDevVPN.isConnected ? "Connected" : "Not connected")
+                            .foregroundStyle(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)
+                    }'''
+    new_status = '''                    LabeledContent("狀態") {
+                        Text(
+                            LocalDevVPN.isConnected
+                                ? "已連線"
+                                : (localDevVPNInstalled ? "已安裝／未連線" : "尚未檢查")
+                        )
+                        .foregroundStyle(
+                            LocalDevVPN.isConnected
+                                ? LocusTheme.statusGood
+                                : (localDevVPNInstalled ? .secondary : LocusTheme.statusWarn)
+                        )
+                    }'''
+    ss = ss.replace(old_status, new_status, 1)
+
+    old_button = '''                    Button {
+                        if localDevVPNInstalled {
+                            LocalDevVPN.openInstalled()
+                        } else {
+                            LocalDevVPN.openAppStore()
+                        }
+                    } label: {
+                        Label(
+                            localDevVPNInstalled ? "Open LocalDevVPN" : "Get LocalDevVPN (App Store)",
+                            systemImage: localDevVPNInstalled ? "lock.shield.fill" : "arrow.down.app.fill"
+                        )
+                    }'''
+    new_button = '''                    Button {
+                        LocalDevVPN.openInstalled { success in
+                            DispatchQueue.main.async {
+                                localDevVPNInstalled = success
+                            }
+                        }
+                    } label: {
+                        Label(
+                            localDevVPNInstalled
+                                ? "開啟 LocalDevVPN"
+                                : "檢查／開啟 LocalDevVPN",
+                            systemImage: "lock.shield.fill"
+                        )
+                    }'''
+    ss = ss.replace(old_button, new_button, 1)
+
+    # Remove canOpenURL-based lifecycle refresh. Only the VPN tunnel itself
+    # determines "已連線"; installation is updated by the real open result.
+    old_lifecycle = '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    localDevVPNInstalled = LocalDevVPN.isInstalled
+                }
+            }'''
+    new_lifecycle = '''            .onAppear {
+                if LocalDevVPN.isConnected {
+                    localDevVPNInstalled = true
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active, LocalDevVPN.isConnected {
+                    localDevVPNInstalled = true
+                }
+            }'''
+    ss = ss.replace(old_lifecycle, new_lifecycle, 1)
+
+    settings.write_text(ss, encoding="utf-8")
+
+# The actual open flow: success means LocalDevVPN is installed; failure means
+# it is not available, and only then should we offer the App Store.
+vpn = ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
+if vpn.exists():
+    vs = vpn.read_text(encoding="utf-8")
+    vs = vs.replace(
+        '''    static var isInstalled: Bool {
+        UIApplication.shared.canOpenURL(enableURL)
+            || UIApplication.shared.canOpenURL(detectURL)
+            || isConnected
+    }''',
+        '''    static var isInstalled: Bool {
+        isConnected
+    }''',
+        1
+    )
+    vs = vs.replace(
+        '''    static func openOrInstall(completion: @escaping (Bool) -> Void = { _ in }) {
+        openInstalled { success in
+            if !success {
+                openAppStore()
+            }
+            completion(success)
+        }
+    }''',
+        '''    static func openOrInstall(completion: @escaping (Bool) -> Void = { _ in }) {
+        openInstalled { success in
+            if !success {
+                openAppStore()
+            }
+            completion(success)
+        }
+    }''',
+        1
+    )
+    vpn.write_text(vs, encoding="utf-8")
+
+project = ROOT / "project.yml"
+if project.exists():
+    ps = project.read_text(encoding="utf-8")
+    import re
+    ps = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "57"', ps)
+    project.write_text(ps, encoding="utf-8")
+
+print("DPort Build 57: reliable LocalDevVPN three-state UI.")
