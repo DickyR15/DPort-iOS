@@ -570,6 +570,23 @@ def patch_vpn_integration(s):
 
     return s
 
+# Declare LocalDevVPN URL scheme so UIApplication.canOpenURL() can
+# distinguish an installed app from an unavailable app.
+import plistlib
+for plist in ROOT.rglob("Info.plist"):
+    try:
+        with plist.open("rb") as fh:
+            p = plistlib.load(fh)
+        if p.get("CFBundlePackageType") == "APPL" or "CFBundleIdentifier" in p:
+            schemes = list(p.get("LSApplicationQueriesSchemes", []))
+            if "localdevvpn" not in schemes:
+                schemes.append("localdevvpn")
+                p["LSApplicationQueriesSchemes"] = schemes
+                with plist.open("wb") as fh:
+                    plistlib.dump(p, fh, sort_keys=False)
+    except Exception:
+        pass
+
 vpn=ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
 if vpn.exists():
     vpn.write_text(patch_vpn_integration(vpn.read_text(encoding="utf-8")), encoding="utf-8")
