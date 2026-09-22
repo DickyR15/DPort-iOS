@@ -502,6 +502,7 @@ ROOT_VIEW.write_text(s, encoding="utf-8")
 
 # Build 73 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
+project = re.sub(r'MARKETING_VERSION:\s*"[^"]+"', 'MARKETING_VERSION: "6.9.0"', project, count=1)
 project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "82"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
