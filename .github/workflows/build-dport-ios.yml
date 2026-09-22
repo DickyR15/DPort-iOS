@@ -52,8 +52,8 @@ jobs:
           source "$HOME/.cargo/env" 2>/dev/null || true
           rustup target add aarch64-apple-ios
           cargo build --release --target aarch64-apple-ios --manifest-path ffi/Cargo.toml --no-default-features --features full,aws-lc
-          test -s target/aarch64-apple-ios/release/libidevice_ffi.a
-          cp target/aarch64-apple-ios/release/libidevice_ffi.a ../src-build/Vendor/idevice/libidevice_ffi.a
+          test -s ffi/target/aarch64-apple-ios/release/libidevice_ffi.a
+          cp ffi/target/aarch64-apple-ios/release/libidevice_ffi.a ../src-build/Vendor/idevice/libidevice_ffi.a
           cp ffi/idevice.h ../src-build/Vendor/idevice/idevice.h
           echo "Using idevice-ffi rev 7bd551c with multihost RPPairing transport"
 
@@ -94,24 +94,24 @@ jobs:
           set -euo pipefail
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/DPort.app"
           test -d "$APP_PATH"
-          rm -rf Payload DPort-6.9.5-Build61-TW.ipa DPort-6.9.5-Build61-TW.zip DPort-6.9.5-Build61-TW.sha256
+          rm -rf Payload DPort-6.9.5-Build62-TW.ipa DPort-6.9.5-Build62-TW.zip DPort-6.9.5-Build62-TW.sha256
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/DPort.app
-          zip -qry DPort-6.9.5-Build61-TW.ipa Payload/DPort.app
-          unzip -t DPort-6.9.5-Build61-TW.ipa
-          cp DPort-6.9.5-Build61-TW.ipa DPort-6.9.5-Build61-TW.zip
-          shasum -a 256 DPort-6.9.5-Build61-TW.ipa > DPort-6.9.5-Build61-TW.sha256
-          test -s DPort-6.9.5-Build61-TW.ipa
-          test -s DPort-6.9.5-Build61-TW.zip
-          test -s DPort-6.9.5-Build61-TW.sha256
-          ls -lh DPort-6.9.5-Build61-TW.ipa DPort-6.9.5-Build61-TW.zip DPort-6.9.5-Build61-TW.sha256
+          zip -qry DPort-6.9.5-Build62-TW.ipa Payload/DPort.app
+          unzip -t DPort-6.9.5-Build62-TW.ipa
+          cp DPort-6.9.5-Build62-TW.ipa DPort-6.9.5-Build62-TW.zip
+          shasum -a 256 DPort-6.9.5-Build62-TW.ipa > DPort-6.9.5-Build62-TW.sha256
+          test -s DPort-6.9.5-Build62-TW.ipa
+          test -s DPort-6.9.5-Build62-TW.zip
+          test -s DPort-6.9.5-Build62-TW.sha256
+          ls -lh DPort-6.9.5-Build62-TW.ipa DPort-6.9.5-Build62-TW.zip DPort-6.9.5-Build62-TW.sha256
 
       - name: Upload DPort 6.9.5 Build 62
         uses: actions/upload-artifact@v7
         with:
-          name: DPort-6.9.5-Build61-TW
+          name: DPort-6.9.5-Build62-TW
           path: |
-            src-build/DPort-6.9.5-Build61-TW.ipa
-            src-build/DPort-6.9.5-Build61-TW.zip
-            src-build/DPort-6.9.5-Build61-TW.sha256
+            src-build/DPort-6.9.5-Build62-TW.ipa
+            src-build/DPort-6.9.5-Build62-TW.zip
+            src-build/DPort-6.9.5-Build62-TW.sha256
           if-no-files-found: error
