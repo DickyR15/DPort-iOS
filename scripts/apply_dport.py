@@ -1623,12 +1623,14 @@ patch_build62_api_compat()
 
 
 # Build 63 — CoreDeviceProxy fallback
+def # Build 63 CoreDeviceProxy / Lockdown route.
 def patch_build63_coredevice():
     p = ROOT / "Locus/Engine/LocationEngine.swift"
     if not p.exists():
         raise SystemExit("Build63: LocationEngine.swift not found")
     c = p.read_text(encoding="utf-8")
     import re
+
     new_func = r'''    private static func setLocked(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String) -> Int32 {
         if let locationSimulation {
             if let err = location_simulation_set(locationSimulation, latitude, longitude) {
@@ -1711,7 +1713,10 @@ def patch_build63_coredevice():
             idevice_pairing_file_free(pairing)
             return false
         }
-        defer { idevice_provider_free(provider) }
+        defer {
+            idevice_provider_free(provider)
+            idevice_pairing_file_free(pairing)
+        }
 
         var newAdapter: OpaquePointer?
         var newHandshake: OpaquePointer?
@@ -1827,6 +1832,13 @@ def patch_build63_coredevice():
                       userInfo: [NSLocalizedDescriptionKey:
                         "無法從 lockdownd:62078 建立配對記錄：\(lastMessage)"])
     }
+'''
+    pat = re.compile(r'    private static func setLocked\(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String\) -> Int32 \{.*?\n    \}\n\n    private static func clearLocked', re.S)
+    m = pat.search(c)
+    if not m:
+        raise SystemExit("Build63: setLocked function not found")
+    c = c[:m.start()] + new_func + '    private static func clearLocked' + c[m.end():]
+    p.write_text(c, encoding="utf-8")
 
 patch_build63_coredevice()
 
