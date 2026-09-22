@@ -459,7 +459,7 @@ s = s.replace(
 )
 
 
-# Build 81: clean circular simulated GPS marker; never show the selection pin during spoofing.
+# DPort 6.9.0: clean circular simulated GPS marker; never show the selection pin during spoofing.
 if MAP_HOME.exists():
     mh = MAP_HOME.read_text(encoding="utf-8")
     mh = mh.replace(
@@ -503,7 +503,7 @@ ROOT_VIEW.write_text(s, encoding="utf-8")
 # Build 73 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
 project = re.sub(r'MARKETING_VERSION:\s*"[^"]+"', 'MARKETING_VERSION: "6.9.0"', project, count=1)
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "82"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "1"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
-print("DPort Build 81 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
+print("DPort 6.9.0 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
