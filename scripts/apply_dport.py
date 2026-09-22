@@ -1829,3 +1829,11 @@ def patch_build63_coredevice():
     }
 
 patch_build63_coredevice()
+
+# Build 63 version stamp is applied before xcodebuild.
+project = ROOT / "project.yml"
+if project.exists():
+    import re
+    ps = project.read_text(encoding="utf-8")
+    ps = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "63"', ps, count=1)
+    project.write_text(ps, encoding="utf-8")
