@@ -43,8 +43,9 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf sideinstaller-ffi
-          git clone --depth 1 https://github.com/FrizzleM/SideInstaller.git sideinstaller-ffi
+          git -c protocol.version=2 clone --depth 1 --filter=blob:none --sparse https://github.com/FrizzleM/SideInstaller.git sideinstaller-ffi
           cd sideinstaller-ffi
+          git sparse-checkout set rust-core
           export DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer
           export IPHONEOS_DEPLOYMENT_TARGET=18.0
           source \"$HOME/.cargo/env\" 2>/dev/null || true
