@@ -211,24 +211,44 @@ new_block = r'''struct BottomControlsView: View {
                         }
                     }
 
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusBad)
-                            .frame(width: 7, height: 7)
-                        Text(LocalDevVPN.isConnected ? "LocalDevVPN 已連線" : "LocalDevVPN 未連線")
-                            .font(.system(size: 10, weight: .bold))
-                        Spacer(minLength: 4)
-                        if let coord = session.simulated ?? session.realCoordinate {
-                            Text(String(format: "%.4f, %.4f", coord.latitude, coord.longitude))
-                                .font(.system(size: 9, weight: .semibold))
-                                .monospacedDigit()
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.65)
+                    VStack(spacing: 2) {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusBad)
+                                .frame(width: 7, height: 7)
+                            Text(LocalDevVPN.isConnected ? "LocalDevVPN 已連線" : "LocalDevVPN 未連線")
+                                .font(.system(size: 10, weight: .bold))
+                            Spacer(minLength: 4)
+                            Text(session.isSpoofing ? "🟢 模擬定位中" : "🔵 尚未模擬定位")
+                                .font(.system(size: 9, weight: .bold))
                         }
+                        HStack(spacing: 6) {
+                            Text("真實")
+                                .font(.system(size: 8, weight: .bold))
+                            if let coord = session.realCoordinate {
+                                Text(String(format: "%.4f, %.4f", coord.latitude, coord.longitude))
+                                    .monospacedDigit()
+                            } else {
+                                Text("--")
+                            }
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            Text("模擬")
+                                .font(.system(size: 8, weight: .bold))
+                            if let coord = session.simulated {
+                                Text(String(format: "%.4f, %.4f", coord.latitude, coord.longitude))
+                                    .monospacedDigit()
+                            } else {
+                                Text("--")
+                            }
+                        }
+                        .font(.system(size: 8, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.55)
                     }
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 8)
-                    .frame(height: 24)
+                    .frame(height: 42)
 
                     HStack(spacing: 7) {
                         // 定位與停止定位分開：定位中也能直接套用新的座標，
@@ -273,11 +293,24 @@ new_block = r'''struct BottomControlsView: View {
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 11)
-                            .background(Capsule().fill(LocusTheme.danger))
+                            .background(Capsule().fill(
+                                (session.isSpoofing || session.simulated != nil)
+                                ? LocusTheme.danger : Color.primary.opacity(0.10)
+                            ))
                             .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
                         .disabled(session.isBusy)
+                        .simultaneousGesture(
+                            LongPressGesture(minimumDuration: 0.8)
+                                .onEnded { _ in
+                                    guard session.isSpoofing || session.simulated != nil else { return }
+                                    session.stop(pairing: pairing)
+                                    session.simulated = nil
+                                    session.pin = nil
+                                    session.lastError = "已停止並清除模擬位置"
+                                }
+                        )
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -362,16 +395,12 @@ s = s.replace(
 )
 
 
-# Build 77: use the DPort app icon as the simulated GPS marker.
+# Build 78: use the DPort app icon as the simulated GPS marker.
 if MAP_HOME.exists():
     mh = MAP_HOME.read_text(encoding="utf-8")
     old = """                    if let sim = session.simulated {
-                        Annotation("Spoof", coordinate: sim) {
-                            ZStack {
-                                Circle().fill(LocusTheme.accent.opacity(0.25)).frame(width: 44, height: 44)
-                                Circle().fill(LocusTheme.accent).frame(width: 14, height: 14)
-                                    .overlay(Circle().stroke(.white, lineWidth: 2))
-                            }
+                        Annotation("DPort", coordinate: sim, anchor: .center) {
+                            DPortSimulatedMarker(isActive: session.isSpoofing)
                         }
                     }"""
     new = """                    if let sim = session.simulated {
@@ -419,4 +448,4 @@ project = PROJECT.read_text(encoding="utf-8")
 project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "77"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
-print("DPort Build 77 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
+print("DPort Build 78 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
