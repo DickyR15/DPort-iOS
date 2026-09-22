@@ -134,32 +134,9 @@ rw("Locus/Features/Settings/SettingsView.swift", patch_settings)
 
 # Tunnel IP: explicit save button with validation and visible feedback.
 def patch_tunnel_settings(s):
-    # apply_dport.py runs first and localizes the upstream labels, so support
-    # both the original English and the already-localized Chinese anchors.
-    anchors = [
-        '                Section {\\n                    TextField("Device tunnel IP"',
-        '                Section {\\n                    TextField("裝置通道 IP"',
-    ]
-    privacy_anchors = [
-        '                Section("Privacy")',
-        '                Section("隱私權")',
-    ]
-
-    t0 = -1
-    for anchor in anchors:
-        t0 = s.find(anchor)
-        if t0 >= 0:
-            break
-
-    p0 = -1
-    if t0 >= 0:
-        for anchor in privacy_anchors:
-            p0 = s.find(anchor, t0)
-            if p0 >= 0:
-                break
-
-    if t0 >= 0 and p0 > t0:
-        vpn_section = '''                Section("VPN 連線") {
+    # Do not fail the build if upstream has already removed/changed the old
+    # Tunnel section. DPort only needs to ensure its LocalDevVPN section exists.
+    vpn_section = '''                Section("VPN 連線") {
                     LabeledContent("LocalDevVPN") {
                         Text(
                             LocalDevVPN.isConnected
@@ -199,10 +176,23 @@ def patch_tunnel_settings(s):
                 }
 
 '''
-        s = s[:t0] + vpn_section + s[p0:]
-    elif 'Section("VPN 連線")' not in s:
-        raise SystemExit("Tunnel section anchors not found after localization")
+    # If the section already exists, do not duplicate it.
+    if 'Section("VPN 連線")' not in s:
+        privacy = s.find('                Section("隱私權")')
+        if privacy < 0:
+            privacy = s.find('                Section("Privacy")')
+        if privacy < 0:
+            # Last-resort insertion before the final closing braces of the
+            # Form/List body. Never fail merely because upstream renamed Privacy.
+            marker = '        }\\n    }\\n'
+            privacy = s.rfind(marker)
+            if privacy < 0:
+                raise SystemExit("Unable to find Settings form insertion point")
+            s = s[:privacy] + vpn_section + s[privacy:]
+        else:
+            s = s[:privacy] + vpn_section + s[privacy:]
 
+    # Remove any manual tunnel state if present; absence is fine.
     for line in (
         '    @State private var tunnelIP = TunnelConfig.targetIP\\n',
         '    @State private var vpnConfigured = LocalDevVPN.isConfigured\\n',
