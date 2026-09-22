@@ -1623,7 +1623,6 @@ patch_build62_api_compat()
 
 
 # Build 63 — CoreDeviceProxy fallback
-def # Build 63 CoreDeviceProxy / Lockdown route.
 def patch_build63_coredevice():
     p = ROOT / "Locus/Engine/LocationEngine.swift"
     if not p.exists():
