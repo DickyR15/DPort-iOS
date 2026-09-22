@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import plistlib
 
 ROOT = Path.cwd()
+
+# DPort Build 54 — LocalDevVPN fix.
+# Do NOT use canOpenURL() as the gate for the action. Apple documents that
+# open(_:options:completionHandler:) itself reports whether an installed app
+# could handle the URL, and recommends handling open failures rather than
+# relying on canOpenURL() as a validator.
+
 vpn = ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
 if not vpn.exists():
     raise SystemExit("LocalDevVPN.swift not found")
 
 s = vpn.read_text(encoding="utf-8")
 
-# Build 51 falsely reported "未安裝" when canOpenURL was false even though
-# LocalDevVPN was already configured/connected. Keep the original URL-open
-# implementation and make installation state also recognize an existing
-# LocalDevVPN configuration.
-old = '''    static var isInstalled: Bool {
+old_installed = '''    static var isInstalled: Bool {
         // Installation state must reflect the actual presence of
         // LocalDevVPN. Never use UserDefaults as an installation cache:
         // if the user removes LocalDevVPN, canOpenURL() must immediately
@@ -20,39 +24,75 @@ old = '''    static var isInstalled: Bool {
         return UIApplication.shared.canOpenURL(detectURL)
             || UIApplication.shared.canOpenURL(enableURL)
     }'''
-new = '''    static var isInstalled: Bool {
-        if UIApplication.shared.canOpenURL(detectURL)
-            || UIApplication.shared.canOpenURL(enableURL) {
-            return true
-        }
-        // A configured or connected LocalDevVPN profile is definitive
-        // evidence that LocalDevVPN is installed on this device.
-        return isConfigured || isConnected
+new_installed = '''    static var isInstalled: Bool {
+        UIApplication.shared.canOpenURL(enableURL)
+            || UIApplication.shared.canOpenURL(detectURL)
+            || isConnected
     }'''
-if old not in s:
-    raise SystemExit("isInstalled block not found")
-s = s.replace(old, new, 1)
+
+if old_installed in s:
+    s = s.replace(old_installed, new_installed, 1)
+
+old_open = '''    static func openInstalled() {
+        // Use LocalDevVPN's supported command URL in both states. The
+        // callback returns to DPort through dport:// after one second.
+        UIApplication.shared.open(enableURL)
+    }'''
+new_open = '''    static func openInstalled(completion: @escaping (Bool) -> Void = { _ in }) {
+        UIApplication.shared.open(enableURL, options: [:]) { success in
+            completion(success)
+        }
+    }'''
+if old_open in s:
+    s = s.replace(old_open, new_open, 1)
+else:
+    old_open2 = '''    static func openInstalled() {
+        UIApplication.shared.open(enableURL)
+    }'''
+    if old_open2 in s:
+        s = s.replace(old_open2, new_open, 1)
+
+old_or_install = '''    static func openOrInstall() {
+        if isInstalled {
+            openInstalled()
+        } else {
+            openAppStore()
+        }
+    }'''
+new_or_install = '''    static func openOrInstall(completion: @escaping (Bool) -> Void = { _ in }) {
+        openInstalled { success in
+            if !success {
+                openAppStore()
+            }
+            completion(success)
+        }
+    }'''
+if old_or_install in s:
+    s = s.replace(old_or_install, new_or_install, 1)
+
+old_auto = '''    static func autoConfigureAndConnect() {
+        if isInstalled {
+            markConfigured()
+            UIApplication.shared.open(enableURL)
+        } else {
+            openAppStore()
+        }
+    }'''
+new_auto = '''    static func autoConfigureAndConnect() {
+        openOrInstall()
+    }'''
+if old_auto in s:
+    s = s.replace(old_auto, new_auto, 1)
 
 vpn.write_text(s, encoding="utf-8")
 
-# Keep the action simple and compatible with the upstream implementation:
-# once installation is recognized, open LocalDevVPN's supported enable URL.
-# Never send an installed/connected LocalDevVPN to the App Store.
+# Settings: never route to the App Store merely because canOpenURL() returned
+# false. The actual open result decides whether LocalDevVPN exists.
 settings = ROOT / "Locus" / "Features" / "Settings" / "SettingsView.swift"
 if settings.exists():
     s = settings.read_text(encoding="utf-8")
-    s = s.replace(
-        '''                    Button {
-                        LocalDevVPN.openOrInstall { installed in
-                            DispatchQueue.main.async {
-                                localDevVPNInstalled = installed || LocalDevVPN.isInstalled
-                                vpnConfigured = installed || LocalDevVPN.isConfigured
-                            }
-                        }
-                    } label: {
-                        Label("開啟 LocalDevVPN", systemImage: "lock.shield.fill")
-                    }''',
-        '''                    Button {
+
+    old_button = '''                    Button {
                         if LocalDevVPN.isInstalled {
                             LocalDevVPN.openInstalled()
                         } else {
@@ -69,101 +109,8 @@ if settings.exists():
                                 ? "lock.shield.fill"
                                 : "arrow.down.app.fill"
                         )
-                    }''',
-        1
-    )
-    s = s.replace(
-        '''                            LocalDevVPN.openOrInstall { installed in
-                                DispatchQueue.main.async {
-                                    localDevVPNInstalled = installed || LocalDevVPN.isInstalled
-                                    vpnConfigured = installed || LocalDevVPN.isConfigured
-                                }
-                            }''',
-        '''                            LocalDevVPN.autoConfigureAndConnect()''',
-    )
-    settings.write_text(s, encoding="utf-8")
-
-project = ROOT / "project.yml"
-if project.exists():
-    s = project.read_text(encoding="utf-8")
-    s = s.replace('CURRENT_PROJECT_VERSION: "51"', 'CURRENT_PROJECT_VERSION: "53"')
-    project.write_text(s, encoding="utf-8")
-
-print("DPort Build 53 LocalDevVPN state detection fix applied.")vpn=ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
-if vpn.exists():
-    s=vpn.read_text(encoding="utf-8")
-    # iOS 27: canOpenURL() is not reliable enough for this integration in
-    # practice. Apple explicitly recommends attempting open() and handling
-    # its completion result instead of using canOpenURL() as a gate.
-    # Keep canOpenURL only as a fast status hint; the actual button action
-    # always uses open(enableURL).
-    s=s.replace("import UIKit\n", "import UIKit\n")
-    s=s.replace(
-        '''    static var isInstalled: Bool {
-        // Installation state must reflect the actual presence of
-        // LocalDevVPN. Never use UserDefaults as an installation cache:
-        // if the user removes LocalDevVPN, canOpenURL() must immediately
-        // report false.
-        return UIApplication.shared.canOpenURL(detectURL)
-            || UIApplication.shared.canOpenURL(enableURL)
-    }''',
-        '''    static var isInstalled: Bool {
-        UIApplication.shared.canOpenURL(enableURL)
-            || UIApplication.shared.canOpenURL(detectURL)
-            || isConnected
-    }''',
-        1
-    )
-    # Replace every installed/open gate with an actual open attempt.
-    import re
-    s=re.sub(
-        r'''    static func openInstalled\(\) \{.*?\n    \}''',
-        '''    static func openInstalled(completion: @escaping (Bool) -> Void = { _ in }) {
-        UIApplication.shared.open(enableURL, options: [:]) { success in
-            completion(success)
-        }
-    }''',
-        s,
-        count=1,
-        flags=re.S
-    )
-    s=re.sub(
-        r'''    static func autoConfigureAndConnect\(\) \{.*?\n    \}''',
-        '''    static func autoConfigureAndConnect() {
-        openInstalled { success in
-            if !success {
-                openAppStore()
-            }
-        }
-    }''',
-        s,
-        count=1,
-        flags=re.S
-    )
-    s=re.sub(
-        r'''    static func openOrInstall\(\) \{.*?\n    \}''',
-        '''    static func openOrInstall(completion: @escaping (Bool) -> Void = { _ in }) {
-        openInstalled { success in
-            if !success {
-                openAppStore()
-            }
-            completion(success)
-        }
-    }''',
-        s,
-        count=1,
-        flags=re.S
-    )
-    vpn.write_text(s,encoding="utf-8")
-
-settings=ROOT / "Locus" / "Features" / "Settings" / "SettingsView.swift"
-if settings.exists():
-    s=settings.read_text(encoding="utf-8")
-    import re
-    # Button: never decide App Store from a stale/false canOpenURL result.
-    s=re.sub(
-        r'''                    Button \{\n                        if localDevVPNInstalled \{\n                            LocalDevVPN\.openInstalled\(\)\n                        \} else \{\n                            LocalDevVPN\.openAppStore\(\)\n                        \}\n                    \} label: \{\n                        Label\(\n                            localDevVPNInstalled \? "Open LocalDevVPN" : "Get LocalDevVPN \(App Store\)",\n                            systemImage: localDevVPNInstalled \? "lock\.shield\.fill" : "arrow\.down\.app\.fill"\n                        \)\n                    \}''',
-        '''                    Button {
+                    }'''
+    new_button = '''                    Button {
                         LocalDevVPN.openOrInstall { success in
                             if success {
                                 localDevVPNInstalled = true
@@ -176,17 +123,21 @@ if settings.exists():
                                 : "開啟／檢查 LocalDevVPN",
                             systemImage: "lock.shield.fill"
                         )
-                    }''',
-        s,
-        count=1
-    )
-    # Status: never call an installed app "未安裝" merely because canOpenURL
-    # returned false. "尚未連線" is the only safe state until an open attempt
-    # confirms the app.
-    s=s.replace(
-        '''Text(LocalDevVPN.isConnected ? "Connected" : "Not connected")
-                            .foregroundStyle(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)''',
-        '''Text(
+                    }'''
+    if old_button in s:
+        s = s.replace(old_button, new_button, 1)
+
+    old_status = '''                        Text(
+                            LocalDevVPN.isConnected
+                                ? "已連線"
+                                : (LocalDevVPN.isInstalled ? "已安裝" : "未安裝")
+                        )
+                        .foregroundStyle(
+                            LocalDevVPN.isConnected
+                                ? LocusTheme.statusGood
+                                : (LocalDevVPN.isInstalled ? .secondary : LocusTheme.statusWarn)
+                        )'''
+    new_status = '''                        Text(
                             LocalDevVPN.isConnected
                                 ? "已連線"
                                 : (localDevVPNInstalled ? "已安裝／未連線" : "尚未連線")
@@ -195,16 +146,17 @@ if settings.exists():
                             LocalDevVPN.isConnected
                                 ? LocusTheme.statusGood
                                 : (localDevVPNInstalled ? .secondary : LocusTheme.statusWarn)
-                        )''',
+                        )'''
+    if old_status in s:
+        s = s.replace(old_status, new_status, 1)
+
+    # Never initialize the UI to "未安裝" solely from canOpenURL().
+    s = s.replace(
+        '@State private var localDevVPNInstalled = LocalDevVPN.isInstalled',
+        '@State private var localDevVPNInstalled = LocalDevVPN.isConnected',
         1
     )
-    # Initial state: don't display a false "未安裝". Connected can still be
-    # detected from the utun interface immediately.
-    s=s.replace(
-        '@State private var localDevVPNInstalled = LocalDevVPN.isInstalled',
-        '@State private var localDevVPNInstalled = LocalDevVPN.isConnected'
-    )
-    s=s.replace(
+    s = s.replace(
         '''            .onAppear {
                 localDevVPNInstalled = LocalDevVPN.isInstalled
             }
@@ -214,7 +166,7 @@ if settings.exists():
                 }
             }''',
         '''            .onAppear {
-                localDevVPNInstalled = LocalDevVPN.isConnected
+                localDevVPNInstalled = localDevVPNInstalled || LocalDevVPN.isConnected
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
@@ -223,15 +175,30 @@ if settings.exists():
             }''',
         1
     )
-    settings.write_text(s,encoding="utf-8")
+    settings.write_text(s, encoding="utf-8")
 
-project=ROOT / "project.yml"
+# Ensure canOpenURL is declared, although Build 54 does not depend on it for
+# the actual open action.
+for plist in ROOT.rglob("Info.plist"):
+    try:
+        with plist.open("rb") as fh:
+            p = plistlib.load(fh)
+        if "CFBundleIdentifier" not in p:
+            continue
+        schemes = list(p.get("LSApplicationQueriesSchemes", []))
+        if "localdevvpn" not in schemes:
+            schemes.append("localdevvpn")
+            p["LSApplicationQueriesSchemes"] = schemes
+            with plist.open("wb") as fh:
+                plistlib.dump(p, fh, sort_keys=False)
+    except Exception:
+        pass
+
+project = ROOT / "project.yml"
 if project.exists():
-    s=project.read_text(encoding="utf-8")
-    s=s.replace('CURRENT_PROJECT_VERSION: "51"','CURRENT_PROJECT_VERSION: "54"')
-    s=s.replace('CURRENT_PROJECT_VERSION: "52"','CURRENT_PROJECT_VERSION: "54"')
-    s=s.replace('CURRENT_PROJECT_VERSION: "53"','CURRENT_PROJECT_VERSION: "54"')
-    project.write_text(s,encoding="utf-8")
+    s = project.read_text(encoding="utf-8")
+    import re
+    s = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "54"', s)
+    project.write_text(s, encoding="utf-8")
 
-print("DPort Build 54: use open() completion for LocalDevVPN; never route an installed app to App Store due to canOpenURL.")
-
+print("DPort Build 54 LocalDevVPN fix applied.")
