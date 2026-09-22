@@ -1092,6 +1092,7 @@ if _root_path.exists():
                         }
                     }
                     labeledTrayIcon("ellipsis", "更多") {
+                        // Keep More useful without introducing a new navigation dependency.
                         showPlaces = true
                     }
                 }
