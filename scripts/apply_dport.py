@@ -1278,7 +1278,7 @@ if _map_path.exists():
                     let name = session.suggestedFavoriteName(for: pin, fallback: pinPlaceName)
                     session.addFavorite(name: name, coordinate: pin)
                 } else {
-                    showPlaces = true
+                    session.lastError = "請先在地圖放置圖釘。"
                 }
             }
         }
