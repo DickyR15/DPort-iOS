@@ -499,20 +499,30 @@ def patch_vpn_integration(s):
         'static let enableURL = URL(string: "localdevvpn://enable?scheme=locus")!',
         'static let enableURL = URL(string: "localdevvpn://enable?scheme=dport")!'
     )
-    if 'static let setupKey = "dport.localdevvpn.setupRequested"' not in s:
+    # Keep two independent pieces of state:
+    # 1) installation = the LocalDevVPN app can be opened / was confirmed installed
+    # 2) configured/connected = the tunnel itself is ready
+    if 'static let installationKey = "dport.localdevvpn.installed"' not in s:
         s = s.replace(
             '    static let detectURL = URL(string: "localdevvpn://")!\n',
-            '    static let detectURL = URL(string: "localdevvpn://")!\n    static let setupKey = "dport.localdevvpn.setupRequested"\n'
+            '    static let detectURL = URL(string: "localdevvpn://")!\n    static let installationKey = "dport.localdevvpn.installed"\n    static let setupKey = "dport.localdevvpn.setupRequested"\n'
         )
+    elif 'static let setupKey = "dport.localdevvpn.setupRequested"' not in s:
+        s = s.replace(
+            '    static let installationKey = "dport.localdevvpn.installed"\n',
+            '    static let installationKey = "dport.localdevvpn.installed"\n    static let setupKey = "dport.localdevvpn.setupRequested"\n'
+        )
+
     anchor = '''    static var isInstalled: Bool {
         UIApplication.shared.canOpenURL(detectURL)
     }
 '''
     replacement = '''    static var isInstalled: Bool {
-        UIApplication.shared.canOpenURL(enableURL)
-            || UIApplication.shared.canOpenURL(detectURL)
-            || isConnected
-            || UserDefaults.standard.bool(forKey: setupKey)
+        if UIApplication.shared.canOpenURL(enableURL) || UIApplication.shared.canOpenURL(detectURL) {
+            UserDefaults.standard.set(true, forKey: installationKey)
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: installationKey)
     }
 
     static var isConfigured: Bool {
@@ -526,8 +536,8 @@ def patch_vpn_integration(s):
     /// Opens LocalDevVPN's supported enable deep-link. LocalDevVPN creates
     /// its provider configuration automatically if one does not exist.
     static func autoConfigureAndConnect() {
-        markConfigured()
         if isInstalled {
+            markConfigured()
             UIApplication.shared.open(enableURL)
         } else {
             openAppStore()
@@ -536,7 +546,19 @@ def patch_vpn_integration(s):
 '''
     if anchor not in s:
         raise SystemExit("LocalDevVPN isInstalled anchor not found")
-    s = s.replace(anchor,replacement,1)
+    s = s.replace(anchor, replacement, 1)
+
+    # Whenever DPort opens the installed app, persist the installation fact.
+    s = s.replace(
+        '''    static func openInstalled() {
+        UIApplication.shared.open(enableURL)
+    }''',
+        '''    static func openInstalled() {
+        UserDefaults.standard.set(true, forKey: installationKey)
+        UIApplication.shared.open(enableURL)
+    }''',
+        1
+    )
     return s
 
 vpn=ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
