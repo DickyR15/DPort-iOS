@@ -146,7 +146,6 @@ new_block = r'''struct BottomControlsView: View {
                         .buttonStyle(.plain)
                         .disabled(session.isBusy)
                     }
-                    }
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -226,7 +225,7 @@ s = s.replace(
 
 ROOT_VIEW.write_text(s, encoding="utf-8")
 
-# Build 70 is set before xcodegen/build.
+# Build 71 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
 project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "71"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
