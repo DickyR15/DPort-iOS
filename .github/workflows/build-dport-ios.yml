@@ -42,19 +42,19 @@ jobs:
       - name: Build current idevice-ffi with multihost RPPairing support
         run: |
           set -euo pipefail
-          rm -rf sideinstaller-ffi
-          curl -L --fail --retry 3 https://github.com/FrizzleM/SideInstaller/archive/refs/heads/main.tar.gz -o sideinstaller.tar.gz
-          tar -xzf sideinstaller.tar.gz
-          mv SideInstaller-main sideinstaller-ffi
-          cd sideinstaller-ffi
+          rm -rf idevice-ffi-build
+          git clone --depth 1 https://github.com/jkcoxson/idevice.git idevice-ffi-build
+          cd idevice-ffi-build
+          git fetch --depth 1 origin 7bd551c16c6dd2e058740d85a2d9399a51a776e9
+          git checkout --detach 7bd551c16c6dd2e058740d85a2d9399a51a776e9
           export DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer
           export IPHONEOS_DEPLOYMENT_TARGET=18.0
-          source \"$HOME/.cargo/env\" 2>/dev/null || true
-          cargo build --release --target aarch64-apple-ios --manifest-path rust-core/Cargo.toml
-          test -s rust-core/target/aarch64-apple-ios/release/libsideinstaller_ffi.a
-          cp rust-core/target/aarch64-apple-ios/release/libsideinstaller_ffi.a ../src-build/Vendor/idevice/libidevice_ffi.a
-          cp rust-core/include/idevice.h ../src-build/Vendor/idevice/idevice.h
-          echo \"Using current idevice-ffi multihost transport\"
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          cargo build --release --target aarch64-apple-ios --manifest-path ffi/Cargo.toml --no-default-features --features full,aws-lc
+          test -s ffi/target/aarch64-apple-ios/release/libidevice_ffi.a
+          cp ffi/target/aarch64-apple-ios/release/libidevice_ffi.a ../src-build/Vendor/idevice/libidevice_ffi.a
+          cp ffi/idevice.h ../src-build/Vendor/idevice/idevice.h
+          echo "Using idevice-ffi rev 7bd551c with multihost RPPairing transport"
 
       - name: Install DPort app icon
         run: |
