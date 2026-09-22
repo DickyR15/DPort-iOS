@@ -429,57 +429,43 @@ s = s.replace(
 )
 
 
-# Build 78: use the DPort app icon as the simulated GPS marker.
+# Build 81: clean circular simulated GPS marker; never show the selection pin during spoofing.
 if MAP_HOME.exists():
     mh = MAP_HOME.read_text(encoding="utf-8")
-    old = """                    if let sim = session.simulated {
+    mh = mh.replace(
+        """                    if let pin = session.pin {
+                        Annotation("", coordinate: pin, anchor: .bottom) {""",
+        """                    if let pin = session.pin, !session.isSpoofing {
+                        Annotation("", coordinate: pin, anchor: .bottom) {""",
+        1,
+    )
+    mh = mh.replace(
+        """                    if let sim = session.simulated {
                         Annotation("DPort", coordinate: sim, anchor: .center) {
                             DPortSimulatedMarker(isActive: session.isSpoofing)
                         }
-                    }"""
-    new = """                    if let sim = session.simulated {
-                        Annotation("DPort", coordinate: sim, anchor: .center) {
-                            DPortSimulatedMarker(isActive: session.isSpoofing)
+                    }""",
+        """                    if let sim = session.simulated {
+                        Annotation("模擬位置", coordinate: sim, anchor: .center) {
+                            ZStack {
+                                Circle()
+                                    .fill(LocusTheme.accent.opacity(session.isSpoofing ? 0.22 : 0.14))
+                                    .frame(width: session.isSpoofing ? 54 : 48,
+                                           height: session.isSpoofing ? 54 : 48)
+                                Circle()
+                                    .fill(LocusTheme.accent)
+                                    .frame(width: 18, height: 18)
+                                    .overlay(Circle().stroke(.white, lineWidth: 3))
+                            }
+                            .shadow(color: LocusTheme.accent.opacity(0.35), radius: 5)
                         }
-                    }"""
-    if old in mh:
-        mh = mh.replace(old, new, 1)
-    if "struct DPortSimulatedMarker: View" not in mh:
-        mh += """
-
-private struct DPortSimulatedMarker: View {
-    let isActive: Bool
-    @State private var pulse = false
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(LocusTheme.accent.opacity(isActive ? 0.20 : 0.12))
-                .frame(width: pulse ? 64 : 56, height: pulse ? 64 : 56)
-
-            Circle()
-                .fill(Color.black.opacity(0.22))
-                .frame(width: 50, height: 50)
-
-            Image("DPortMapPin")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 42, height: 42)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 2))
-                .shadow(color: .black.opacity(0.30), radius: 3, y: 2)
-        }
-        .scaleEffect(pulse ? 1.04 : 1.0)
-        .animation(
-            isActive ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true) : .default,
-            value: pulse
-        )
-        .onAppear { pulse = isActive }
-        .onChange(of: isActive) { _, active in pulse = active }
-        .accessibilityLabel("DPort 模擬位置")
-    }
-}
-"""
+                    }""",
+        1,
+    )
+    # Remove any legacy DPortSimulatedMarker that an earlier patch appended.
+    marker_start = mh.find("\nprivate struct DPortSimulatedMarker: View")
+    if marker_start >= 0:
+        mh = mh[:marker_start] + "\n"
     MAP_HOME.write_text(mh, encoding="utf-8")
 
 ROOT_VIEW.write_text(s, encoding="utf-8")
