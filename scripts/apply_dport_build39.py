@@ -507,7 +507,7 @@ def patch_vpn_integration(s):
     if 'static let installationKey = "dport.localdevvpn.installed"' not in s:
         s = s.replace(
             'static let detectURL = URL(string: "localdevvpn://")!',
-            'static let detectURL = URL(string: "localdevvpn://")!\\n    static let installationKey = "dport.localdevvpn.installed"\\n    static let setupKey = "dport.localdevvpn.setupRequested"',
+            'static let detectURL = URL(string: "localdevvpn://")!\n    static let installationKey = "dport.localdevpn.installed"\n    static let setupKey = "dport.localdevvpn.setupRequested"',
             1
         )
     elif 'static let setupKey = "dport.localdevvpn.setupRequested"' not in s:
