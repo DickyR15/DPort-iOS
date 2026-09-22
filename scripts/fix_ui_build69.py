@@ -5,17 +5,30 @@ import re
 ROOT = Path.cwd()
 PROJECT = ROOT / "project.yml"
 ROOT_VIEW = ROOT / "Locus/Features/Map/RootView.swift"
+SPOOF_SESSION = ROOT / "Locus/Engine/SpoofSession.swift"
 
 if not ROOT_VIEW.exists():
     raise SystemExit("RootView.swift not found")
 
 s = ROOT_VIEW.read_text(encoding="utf-8")
 
+# Keep the joystick available by default. Stopping GPS simulation should not
+# disable the joystick; the pad simply waits for the next simulated coordinate.
+if SPOOF_SESSION.exists():
+    ss = SPOOF_SESSION.read_text(encoding="utf-8")
+    stop_start = ss.find("    func stop(pairing: PairingStore) {")
+    stop_end = ss.find("\n    }\n\n    /// Best-known real device coordinate", stop_start)
+    if stop_start >= 0 and stop_end >= 0:
+        stop_block = ss[stop_start:stop_end]
+        stop_block = stop_block.replace("        stopJoystick()\n", "", 1)
+        ss = ss[:stop_start] + stop_block + ss[stop_end:]
+        SPOOF_SESSION.write_text(ss, encoding="utf-8")
+
 # Normalize upstream MapHomeView initializer across Locus revisions.
-# Build 71 keeps showCoordinates binding and separates Locate / Stop Locate.
+# Build 72 keeps showCoordinates binding and separates Locate / Stop Locate.
 s = re.sub(r'MapHomeView\\(\\s*showCoordinates:\\s*\\$showCoordinates\\s*\\)', 'MapHomeView()', s)
 
-# Build 71 UI: match the requested DPort layout and separate locate/stop actions.
+# Build 72 UI: match the requested DPort layout and separate locate/stop actions.
 # - Joystick is permanently on the LEFT side of the bottom tray.
 # - Travel modes are a labeled 4-column row on the RIGHT.
 # - Settings / Favorites / Pin / More are a labeled 4-column row.
@@ -35,6 +48,14 @@ new_block = r'''struct BottomControlsView: View {
     @Binding var showCoordinates: Bool
 
     private let trayShape = RoundedRectangle(cornerRadius: 28, style: .continuous)
+
+    private var locateTitle: String {
+        session.isSpoofing ? "更新定位" : "定位"
+    }
+
+    private var locateIcon: String {
+        session.isSpoofing ? "location.north.line.fill" : "location.fill"
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -112,8 +133,8 @@ new_block = r'''struct BottomControlsView: View {
                             session.teleport(to: pin, pairing: pairing)
                         } label: {
                             HStack(spacing: 5) {
-                                Image(systemName: "location.fill")
-                                Text("定位")
+                                Image(systemName: locateIcon)
+                                Text(locateTitle)
                             }
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.black)
@@ -155,6 +176,11 @@ new_block = r'''struct BottomControlsView: View {
             .contentShape(trayShape)
         }
         .frame(height: 268)
+        .onAppear {
+            if pairing.hasPairingFile && !session.joystickActive {
+                session.startJoystick(pairing: pairing)
+            }
+        }
     }
 
     private func modeButton(_ mode: TravelMode, title: String) -> some View {
@@ -225,9 +251,9 @@ s = s.replace(
 
 ROOT_VIEW.write_text(s, encoding="utf-8")
 
-# Build 71 is set before xcodegen/build.
+# Build 72 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "71"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "72"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
-print("DPort Build 71 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
+print("DPort Build 72 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
