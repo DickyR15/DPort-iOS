@@ -18,7 +18,7 @@ def write(rel, content):
 # DPort iOS UI release — Build 39, version 6.9.0.
 project = PROJECT.read_text(encoding="utf-8")
 project = project.replace('MARKETING_VERSION: "6.8.2"', 'MARKETING_VERSION: "6.9.0"')
-project = project.replace('CURRENT_PROJECT_VERSION: "35"', 'CURRENT_PROJECT_VERSION: "39"')
+project = project.replace('CURRENT_PROJECT_VERSION: "35"', 'CURRENT_PROJECT_VERSION: "1"')
 project = project.replace('CURRENT_PROJECT_VERSION: "38"', 'CURRENT_PROJECT_VERSION: "39"')
 PROJECT.write_text(project, encoding="utf-8")
 
@@ -795,7 +795,7 @@ if plist.exists():
 # New version without the digit 4.
 project=PROJECT.read_text(encoding="utf-8")
 project=project.replace('MARKETING_VERSION: "6.9.0"','MARKETING_VERSION: "6.9.0"')
-project=project.replace('CURRENT_PROJECT_VERSION: "39"','CURRENT_PROJECT_VERSION: "51"')
+project=project.replace('CURRENT_PROJECT_VERSION: "39"','CURRENT_PROJECT_VERSION: "1"')
 PROJECT.write_text(project,encoding="utf-8")
 
 
@@ -910,7 +910,7 @@ if root.exists():
 
 # Build 67 is the first UI-polish build after the confirmed working Build 65.
 project=PROJECT.read_text(encoding="utf-8")
-project=re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "67"', project, count=1)
+project=re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "1"', project, count=1)
 PROJECT.write_text(project,encoding="utf-8")
 
 print("DPort Build 67 UI polish applied.")
