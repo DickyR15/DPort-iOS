@@ -56,30 +56,30 @@ jobs:
           set -euo pipefail
           xcodebuild             -project DPort.xcodeproj             -scheme DPort             -configuration Release             -destination 'generic/platform=iOS'             -derivedDataPath build/DerivedData             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             DEVELOPMENT_TEAM=             build
 
-      - name: Package DPort 6.9.5 Build 56 IPA
+      - name: Package DPort 6.9.5 Build 57 IPA
         working-directory: src-build
         run: |
           set -euo pipefail
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/DPort.app"
           test -d "$APP_PATH"
-          rm -rf Payload DPort-6.9.5-Build56-TW.ipa DPort-6.9.5-Build56-TW.zip DPort-6.9.5-Build56-TW.sha256
+          rm -rf Payload DPort-6.9.5-Build57-TW.ipa DPort-6.9.5-Build57-TW.zip DPort-6.9.5-Build57-TW.sha256
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/DPort.app
-          zip -qry DPort-6.9.5-Build56-TW.ipa Payload/DPort.app
-          unzip -t DPort-6.9.5-Build56-TW.ipa
-          cp DPort-6.9.5-Build56-TW.ipa DPort-6.9.5-Build56-TW.zip
-          shasum -a 256 DPort-6.9.5-Build56-TW.ipa > DPort-6.9.5-Build56-TW.sha256
-          test -s DPort-6.9.5-Build56-TW.ipa
-          test -s DPort-6.9.5-Build56-TW.zip
-          test -s DPort-6.9.5-Build56-TW.sha256
-          ls -lh DPort-6.9.5-Build56-TW.ipa DPort-6.9.5-Build56-TW.zip DPort-6.9.5-Build56-TW.sha256
+          zip -qry DPort-6.9.5-Build57-TW.ipa Payload/DPort.app
+          unzip -t DPort-6.9.5-Build57-TW.ipa
+          cp DPort-6.9.5-Build57-TW.ipa DPort-6.9.5-Build57-TW.zip
+          shasum -a 256 DPort-6.9.5-Build57-TW.ipa > DPort-6.9.5-Build57-TW.sha256
+          test -s DPort-6.9.5-Build57-TW.ipa
+          test -s DPort-6.9.5-Build57-TW.zip
+          test -s DPort-6.9.5-Build57-TW.sha256
+          ls -lh DPort-6.9.5-Build57-TW.ipa DPort-6.9.5-Build57-TW.zip DPort-6.9.5-Build57-TW.sha256
 
-      - name: Upload DPort 6.9.5 Build 56
+      - name: Upload DPort 6.9.5 Build 57
         uses: actions/upload-artifact@v7
         with:
-          name: DPort-6.9.5-Build56-TW
+          name: DPort-6.9.5-Build57-TW
           path: |
-            src-build/DPort-6.9.5-Build56-TW.ipa
-            src-build/DPort-6.9.5-Build56-TW.zip
-            src-build/DPort-6.9.5-Build56-TW.sha256
+            src-build/DPort-6.9.5-Build57-TW.ipa
+            src-build/DPort-6.9.5-Build57-TW.zip
+            src-build/DPort-6.9.5-Build57-TW.sha256
           if-no-files-found: error
