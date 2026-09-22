@@ -375,8 +375,7 @@ if location.exists():
                 )
             }
         }
-        if let providerError {
-            idevice_error_free(providerError)
+        if !tunnelSucceeded {
             cleanup()
             return tunnelCreate
         }'''
@@ -385,6 +384,7 @@ if location.exists():
         // RPPairing tunnel creation instead of treating the first failure as
         // a permanent LocalDevVPN failure.
         var providerError: UnsafeMutablePointer<IdeviceFfiError>?
+        var tunnelSucceeded = false
         for attempt in 0..<6 {
             cleanup()
             providerError = withUnsafePointer(to: &address) { pointer in
@@ -402,6 +402,7 @@ if location.exists():
                 }
             }
             if providerError == nil {
+                tunnelSucceeded = true
                 break
             }
             idevice_error_free(providerError)
@@ -427,9 +428,11 @@ if location.exists():
             return remoteServerCode
         }'''
     new_rsd = '''        var remoteServerError: UnsafeMutablePointer<IdeviceFfiError>?
+        var rsdSucceeded = false
         for attempt in 0..<4 {
             remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer)
             if remoteServerError == nil {
+                rsdSucceeded = true
                 break
             }
             idevice_error_free(remoteServerError)
@@ -439,8 +442,7 @@ if location.exists():
                 usleep(500_000)
             }
         }
-        if let remoteServerError {
-            idevice_error_free(remoteServerError)
+        if !rsdSucceeded {
             cleanup()
             return remoteServerCode
         }'''
