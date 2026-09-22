@@ -134,17 +134,31 @@ rw("Locus/Features/Settings/SettingsView.swift", patch_settings)
 
 # Tunnel IP: explicit save button with validation and visible feedback.
 def patch_tunnel_settings(s):
-    # Locate the upstream Tunnel section by its stable label and remove it.
-    # Avoid regex/exact full-block matching because upstream formatting changes.
-    tunnel_anchor = '                Section {\\n                    TextField("Device tunnel IP"'
-    privacy_anchor = '                Section("Privacy")'
-    t0 = s.find(tunnel_anchor)
-    p0 = s.find(privacy_anchor, t0 if t0 >= 0 else 0)
-    if t0 < 0 or p0 < 0 or p0 <= t0:
-        # If a previous DPort patch already inserted the VPN section, leave it.
-        if 'Section("VPN 連線")' not in s:
-            raise SystemExit("Tunnel section anchors not found")
-    else:
+    # apply_dport.py runs first and localizes the upstream labels, so support
+    # both the original English and the already-localized Chinese anchors.
+    anchors = [
+        '                Section {\\n                    TextField("Device tunnel IP"',
+        '                Section {\\n                    TextField("裝置通道 IP"',
+    ]
+    privacy_anchors = [
+        '                Section("Privacy")',
+        '                Section("隱私權")',
+    ]
+
+    t0 = -1
+    for anchor in anchors:
+        t0 = s.find(anchor)
+        if t0 >= 0:
+            break
+
+    p0 = -1
+    if t0 >= 0:
+        for anchor in privacy_anchors:
+            p0 = s.find(anchor, t0)
+            if p0 >= 0:
+                break
+
+    if t0 >= 0 and p0 > t0:
         vpn_section = '''                Section("VPN 連線") {
                     LabeledContent("LocalDevVPN") {
                         Text(
@@ -186,8 +200,9 @@ def patch_tunnel_settings(s):
 
 '''
         s = s[:t0] + vpn_section + s[p0:]
+    elif 'Section("VPN 連線")' not in s:
+        raise SystemExit("Tunnel section anchors not found after localization")
 
-    # Remove manual tunnel state variables; no user-editable tunnel IP remains.
     for line in (
         '    @State private var tunnelIP = TunnelConfig.targetIP\\n',
         '    @State private var vpnConfigured = LocalDevVPN.isConfigured\\n',
@@ -196,7 +211,6 @@ def patch_tunnel_settings(s):
     ):
         s = s.replace(line, "")
 
-    # Done should simply dismiss instead of saving a tunnel IP.
     s = s.replace(
         '''                    Button("Done") {
                         TunnelConfig.setTargetIP(tunnelIP)
