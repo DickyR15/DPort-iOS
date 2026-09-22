@@ -85,6 +85,19 @@ if SPOOF_SESSION.exists():
         guard let current = simulated ?? locationKeeper.lastKnownCoordinate else { return }"""
         ss = ss.replace(old_tick, new_tick, 1)
 
+    # Build 78: explicit maximum speeds by travel mode.
+    ss = ss.replace(
+        """        case .walk: return 1.4
+        case .run: return 3.3
+        case .cycle: return 6.5
+        case .drive: return 13.4""",
+        """        case .walk: return 1.6667
+        case .run: return 4.1667
+        case .cycle: return 9.7222
+        case .drive: return 33.3333""",
+        1
+    )
+
     stop_start = ss.find("    func stop(pairing: PairingStore) {")
     stop_end = ss.find("\n    }\n\n    /// Best-known real device coordinate", stop_start)
     if stop_start >= 0 and stop_end >= 0:
