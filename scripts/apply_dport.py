@@ -1117,11 +1117,12 @@ def patch_build60_location_engine():
         'case .remoteServer: return "RSD 開發者通道交握失敗：\\\\(LocationEngine.lastRSDTunnelError ?? "未知錯誤")"',
         1
     )
-    c = c.replace(
-        '    private static var locationSimulation: OpaquePointer?\\n',
-        '    private static var locationSimulation: OpaquePointer?\\n    private static var lastTunnelError: String?\\n    private static var lastRSDTunnelError: String?\\n',
-        1
-    )
+    if 'private static var lastTunnelError: String?' not in c:
+        c = c.replace(
+            '    private static var locationSimulation: OpaquePointer?',
+            '    private static var locationSimulation: OpaquePointer?\n    private static var lastTunnelError: String?\n    private static var lastRSDTunnelError: String?',
+            1
+        )
 
     new_func = r'''    private static func setLocked(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String) -> Int32 {
         if let locationSimulation {
