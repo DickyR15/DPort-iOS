@@ -495,36 +495,48 @@ rw("Locus/Resources/Info.plist", lambda s:
 # public deep-link starts its own manager and creates the configuration when
 # missing. We use that supported entry point and return to DPort automatically.
 def patch_vpn_integration(s):
+    import re
+
+    # LocalDevVPN uses a public deep-link.  Keep App installation state
+    # completely separate from tunnel connectivity.
     s = s.replace(
         'static let enableURL = URL(string: "localdevvpn://enable?scheme=locus")!',
         'static let enableURL = URL(string: "localdevvpn://enable?scheme=dport")!'
     )
-    # Keep two independent pieces of state:
-    # 1) installation = the LocalDevVPN app can be opened / was confirmed installed
-    # 2) configured/connected = the tunnel itself is ready
+
     if 'static let installationKey = "dport.localdevvpn.installed"' not in s:
         s = s.replace(
-            '    static let detectURL = URL(string: "localdevvpn://")!\n',
-            '    static let detectURL = URL(string: "localdevvpn://")!\n    static let installationKey = "dport.localdevvpn.installed"\n    static let setupKey = "dport.localdevvpn.setupRequested"\n'
+            'static let detectURL = URL(string: "localdevvpn://")!',
+            'static let detectURL = URL(string: "localdevvpn://")!\\n    static let installationKey = "dport.localdevvpn.installed"\\n    static let setupKey = "dport.localdevvpn.setupRequested"',
+            1
         )
     elif 'static let setupKey = "dport.localdevvpn.setupRequested"' not in s:
         s = s.replace(
-            '    static let installationKey = "dport.localdevvpn.installed"\n',
-            '    static let installationKey = "dport.localdevvpn.installed"\n    static let setupKey = "dport.localdevvpn.setupRequested"\n'
+            'static let installationKey = "dport.localdevvpn.installed"',
+            'static let installationKey = "dport.localdevvpn.installed"\\n    static let setupKey = "dport.localdevvpn.setupRequested"',
+            1
         )
 
-    anchor = '''    static var isInstalled: Bool {
-        UIApplication.shared.canOpenURL(detectURL)
-    }
-'''
-    replacement = '''    static var isInstalled: Bool {
+    installed = '''    static var isInstalled: Bool {
         if UIApplication.shared.canOpenURL(enableURL) || UIApplication.shared.canOpenURL(detectURL) {
             UserDefaults.standard.set(true, forKey: installationKey)
             return true
         }
         return UserDefaults.standard.bool(forKey: installationKey)
-    }
+    }'''
+    s, n = re.subn(
+        r'    static var isInstalled: Bool \{.*?\n    \}',
+        installed,
+        s,
+        count=1,
+        flags=re.S
+    )
+    if n != 1:
+        raise SystemExit("LocalDevVPN isInstalled block not found")
 
+    if 'static var isConfigured: Bool' not in s:
+        marker = installed
+        configured = '''\n
     static var isConfigured: Bool {
         UserDefaults.standard.bool(forKey: setupKey) || isConnected
     }
@@ -533,8 +545,7 @@ def patch_vpn_integration(s):
         UserDefaults.standard.set(true, forKey: setupKey)
     }
 
-    /// Opens LocalDevVPN's supported enable deep-link. LocalDevVPN creates
-    /// its provider configuration automatically if one does not exist.
+    /// Opens LocalDevVPN's supported enable deep-link.
     static func autoConfigureAndConnect() {
         if isInstalled {
             markConfigured()
@@ -542,23 +553,21 @@ def patch_vpn_integration(s):
         } else {
             openAppStore()
         }
-    }
-'''
-    if anchor not in s:
-        raise SystemExit("LocalDevVPN isInstalled anchor not found")
-    s = s.replace(anchor, replacement, 1)
+    }'''
+        s = s.replace(marker, marker + configured, 1)
 
-    # Whenever DPort opens the installed app, persist the installation fact.
-    s = s.replace(
-        '''    static func openInstalled() {
-        UIApplication.shared.open(enableURL)
-    }''',
+    # Record installation when DPort successfully opens LocalDevVPN.
+    s = re.sub(
+        r'    static func openInstalled\(\) \{.*?\n    \}',
         '''    static func openInstalled() {
         UserDefaults.standard.set(true, forKey: installationKey)
         UIApplication.shared.open(enableURL)
     }''',
-        1
+        s,
+        count=1,
+        flags=re.S
     )
+
     return s
 
 vpn=ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
