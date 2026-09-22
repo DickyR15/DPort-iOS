@@ -12,10 +12,10 @@ if not ROOT_VIEW.exists():
 s = ROOT_VIEW.read_text(encoding="utf-8")
 
 # Normalize upstream MapHomeView initializer across Locus revisions.
-# Build 70 does not use a showCoordinates binding.
+# Build 71 keeps showCoordinates binding and separates Locate / Stop Locate.
 s = re.sub(r'MapHomeView\\(\\s*showCoordinates:\\s*\\$showCoordinates\\s*\\)', 'MapHomeView()', s)
 
-# Build 70 UI: match the requested DPort layout.
+# Build 71 UI: match the requested DPort layout and separate locate/stop actions.
 # - Joystick is permanently on the LEFT side of the bottom tray.
 # - Travel modes are a labeled 4-column row on the RIGHT.
 # - Settings / Favorites / Pin / More are a labeled 4-column row.
@@ -102,67 +102,50 @@ new_block = r'''struct BottomControlsView: View {
                     }
 
                     HStack(spacing: 7) {
+                        // 定位與停止定位分開：定位中也能直接套用新的座標，
+                        // 不需要先停止再重新定位。
                         Button {
-                            if session.joystickActive {
-                                session.stopJoystick()
-                            } else {
-                                session.startJoystick(pairing: pairing)
+                            guard let pin = session.pin else {
+                                session.lastError = "請先點選地圖放置圖釘。"
+                                return
                             }
+                            session.teleport(to: pin, pairing: pairing)
                         } label: {
                             HStack(spacing: 5) {
-                                Image(systemName: "dot.circle.and.hand.point.up.left.fill")
-                                Text(session.joystickActive ? "搖桿關閉" : "搖桿開啟")
+                                Image(systemName: "location.fill")
+                                Text("定位")
                             }
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(session.joystickActive ? .black : .primary)
+                            .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 11)
-                            .background(
-                                Capsule().fill(
-                                    session.joystickActive
-                                    ? LocusTheme.accentSecondary
-                                    : Color.primary.opacity(0.08)
-                                )
-                            )
+                            .background(Capsule().fill(LocusTheme.accent))
                             .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
+                        .disabled(session.isBusy)
 
-                        if session.isSpoofing {
-                            Button {
-                                session.stop(pairing: pairing)
-                            } label: {
-                                Text("停止")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 11)
-                                    .background(Capsule().fill(LocusTheme.danger))
-                                    .contentShape(Capsule())
+                        Button {
+                            guard session.isSpoofing || session.simulated != nil else {
+                                session.lastError = "目前沒有正在進行的模擬定位。"
+                                return
                             }
-                            .buttonStyle(.plain)
-                        } else {
-                            Button {
-                                guard let pin = session.pin else {
-                                    session.lastError = "請先點選地圖放置圖釘。"
-                                    return
-                                }
-                                session.teleport(to: pin, pairing: pairing)
-                            } label: {
-                                HStack(spacing: 5) {
-                                    Image(systemName: "location.fill")
-                                    Text("傳送定位")
-                                }
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.black)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 11)
-                                .background(Capsule().fill(LocusTheme.accent))
-                                .contentShape(Capsule())
+                            session.stop(pairing: pairing)
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "stop.fill")
+                                Text("停止定位")
                             }
-                            .buttonStyle(.plain)
-                            .disabled(session.isBusy)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                            .background(Capsule().fill(LocusTheme.danger))
+                            .contentShape(Capsule())
                         }
+                        .buttonStyle(.plain)
+                        .disabled(session.isBusy)
+                    }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -245,7 +228,7 @@ ROOT_VIEW.write_text(s, encoding="utf-8")
 
 # Build 70 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "70"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "71"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
-print("DPort Build 70 UI applied: left joystick, labeled 4+4 controls, safe tray corners.")
+print("DPort Build 71 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
