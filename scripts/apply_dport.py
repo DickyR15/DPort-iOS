@@ -1482,11 +1482,11 @@ def patch_build62_multihost():
 
         cleanup()
         let providerError = withUnsafePointer(to: &address) { pointer in
-            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
                 "LocusLocation".withCString { hostname in
                     extraHosts.withUnsafeBufferPointer { buffer in
                         tunnel_create_rppairing_multihost(
-                            $0,
+                            sockaddrPointer,
                             socklen_t(MemoryLayout<sockaddr_in>.stride),
                             hostname,
                             pairingHandle,
