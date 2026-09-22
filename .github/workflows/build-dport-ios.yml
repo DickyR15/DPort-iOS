@@ -64,7 +64,7 @@ jobs:
           set -euo pipefail
           xcodebuild             -project DPort.xcodeproj             -scheme DPort             -configuration Release             -destination 'generic/platform=iOS'             -derivedDataPath build/DerivedData             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             DEVELOPMENT_TEAM=             build
 
-      - name: Set DPort version to Build 65
+      - name: Set DPort version to Build 66
         working-directory: src-build
         run: |
           set -euo pipefail
@@ -73,34 +73,34 @@ jobs:
           p=Path('project.yml')
           s=p.read_text()
           import re
-          s=re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "65"', s, count=1)
+          s=re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "66"', s, count=1)
           p.write_text(s)
           PY
           grep 'CURRENT_PROJECT_VERSION' project.yml
 
-      - name: Package DPort 6.9.5 Build 65 IPA
+      - name: Package DPort 6.9.5 Build 66 IPA
         working-directory: src-build
         run: |
           set -euo pipefail
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/DPort.app"
           test -d "$APP_PATH"
-          rm -rf Payload DPort-6.9.5-Build65-TW.ipa DPort-6.9.5-Build65-TW.sha256
+          rm -rf Payload DPort-6.9.5-Build66-TW.ipa DPort-6.9.5-Build66-TW.sha256
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/DPort.app
-          zip -qry DPort-6.9.5-Build65-TW.ipa Payload/DPort.app
-          unzip -t DPort-6.9.5-Build65-TW.ipa
-          shasum -a 256 DPort-6.9.5-Build65-TW.ipa > DPort-6.9.5-Build65-TW.sha256
-          test -s DPort-6.9.5-Build65-TW.ipa
-          test -s DPort-6.9.5-Build65-TW.sha256
-          ls -lh DPort-6.9.5-Build65-TW.ipa DPort-6.9.5-Build65-TW.sha256
+          zip -qry DPort-6.9.5-Build66-TW.ipa Payload/DPort.app
+          unzip -t DPort-6.9.5-Build66-TW.ipa
+          shasum -a 256 DPort-6.9.5-Build66-TW.ipa > DPort-6.9.5-Build66-TW.sha256
+          test -s DPort-6.9.5-Build66-TW.ipa
+          test -s DPort-6.9.5-Build66-TW.sha256
+          ls -lh DPort-6.9.5-Build66-TW.ipa DPort-6.9.5-Build66-TW.sha256
 
-      - name: Upload DPort 6.9.5 Build 65
+      - name: Upload DPort 6.9.5 Build 66
         uses: actions/upload-artifact@v7
         with:
-          name: DPort-6.9.5-Build65-TW
+          name: DPort-6.9.5-Build66-TW
           path: |
-            src-build/DPort-6.9.5-Build65-TW.ipa
-            src-build/DPort-6.9.5-Build65-TW.sha256
+            src-build/DPort-6.9.5-Build66-TW.ipa
+            src-build/DPort-6.9.5-Build66-TW.sha256
           if-no-files-found: error
 
 
