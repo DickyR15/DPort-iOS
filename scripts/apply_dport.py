@@ -1559,3 +1559,46 @@ def patch_build62_multihost():
     p.write_text(c, encoding="utf-8")
 
 patch_build62_multihost()
+
+
+
+# Build 62 API compatibility fix for the current SideInstaller idevice.h.
+def patch_build62_api_compat():
+    import re
+    # LocationEngine: multihost expects const char *const *, while strdup()
+    # returns mutable pointers. Convert the candidates to immutable pointers.
+    p = ROOT / "Locus/Engine/LocationEngine.swift"
+    if p.exists():
+        c = p.read_text(encoding="utf-8")
+        c = c.replace(
+            'let cHosts: [UnsafeMutablePointer<CChar>?] = hostStorage.map { strdup($0) }',
+            'let cHosts: [UnsafePointer<CChar>?] = hostStorage.compactMap { value in\\n            guard let p = strdup(value) else { return nil }\\n            return UnsafePointer(p)\\n        }'
+        )
+        c = c.replace(
+            'for p in cHosts {\\n                if let p { free(p) }',
+            'for p in cHosts {\\n                if let p { free(UnsafeMutablePointer(mutating: p)) }'
+        )
+        p.write_text(c, encoding="utf-8")
+
+    # PairOnDeviceService: the current FFI pairable_host_accept API no longer
+    # takes the listening/connected trampolines. It accepts:
+    # name, model, port, pin callback/context, altIRK, pairing-file output.
+    q = ROOT / "Locus/Engine/PairOnDeviceService.swift"
+    if q.exists():
+        c = q.read_text(encoding="utf-8")
+        old = re.compile(r'''pairable_host_accept\\(\n\\s*namePtr,\n\\s*modelPtr,\n\\s*0,\n\\s*pinDisplayTrampoline,\n\\s*Unmanaged\\.passUnretained\\(box\\)\\.toOpaque\\(\\),\n\\s*listeningTrampoline,\n\\s*Unmanaged\\.passUnretained\\(box\\)\\.toOpaque\\(\\),\n\\s*connectedTrampoline,\n\\s*Unmanaged\\.passUnretained\\(box\\)\\.toOpaque\\(\\),\n\\s*&altIRK,\n\\s*&outFile\n\\s*\\)''', re.S)
+        new = '''pairable_host_accept(
+                    namePtr,
+                    modelPtr,
+                    0,
+                    pinDisplayTrampoline,
+                    Unmanaged.passUnretained(box).toOpaque(),
+                    &altIRK,
+                    &outFile
+                )'''
+        c2, n = old.subn(new, c, count=1)
+        if n != 1:
+            raise SystemExit("Build62: pairable_host_accept old call not found")
+        q.write_text(c2, encoding="utf-8")
+
+patch_build62_api_compat()
