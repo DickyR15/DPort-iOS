@@ -235,29 +235,6 @@ new_block = r'''struct BottomControlsView: View {
                             Text(session.isSpoofing ? "🟢 模擬定位中" : "🔵 尚未模擬定位")
                                 .font(.system(size: 9, weight: .bold))
                         }
-                        HStack(spacing: 6) {
-                            Text("真實")
-                                .font(.system(size: 8, weight: .bold))
-                            if let coord = session.realCoordinate {
-                                Text(String(format: "%.4f, %.4f", coord.latitude, coord.longitude))
-                                    .monospacedDigit()
-                            } else {
-                                Text("--")
-                            }
-                            Text("•")
-                                .foregroundStyle(.secondary)
-                            Text("模擬")
-                                .font(.system(size: 8, weight: .bold))
-                            if let coord = session.simulated {
-                                Text(String(format: "%.4f, %.4f", coord.latitude, coord.longitude))
-                                    .monospacedDigit()
-                            } else {
-                                Text("--")
-                            }
-                        }
-                        .font(.system(size: 8, weight: .semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.55)
                     }
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 8)
@@ -433,13 +410,20 @@ private struct DPortSimulatedMarker: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(LocusTheme.accent.opacity(isActive ? 0.22 : 0.14))
-                .frame(width: pulse ? 56 : 48, height: pulse ? 56 : 48)
+                .fill(LocusTheme.accent.opacity(isActive ? 0.20 : 0.12))
+                .frame(width: pulse ? 64 : 56, height: pulse ? 64 : 56)
+
+            Circle()
+                .fill(Color.black.opacity(0.22))
+                .frame(width: 50, height: 50)
+
             Image("DPortMapPin")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 34, height: 34)
-                .shadow(color: .black.opacity(0.28), radius: 3, y: 2)
+                .frame(width: 42, height: 42)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 2))
+                .shadow(color: .black.opacity(0.30), radius: 3, y: 2)
         }
         .scaleEffect(pulse ? 1.04 : 1.0)
         .animation(
@@ -458,7 +442,7 @@ ROOT_VIEW.write_text(s, encoding="utf-8")
 
 # Build 73 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "79"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "80"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
-print("DPort Build 79 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
+print("DPort Build 80 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
