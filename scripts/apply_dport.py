@@ -940,18 +940,13 @@ def _hardening_settings_vpn(path: Path):
                 raise SystemExit("DPort: unable to find a Settings section insertion point")
             content = content[:insert_at + 1] + vpn_section + content[insert_at + 1:]
 
-    # Remove obsolete tunnel state and Done-side effect.
-    content = content.replace('    @State private var tunnelIP = TunnelConfig.targetIP\n', '')
-    content = content.replace(
-        '''                    Button("Done") {
-                        TunnelConfig.setTargetIP(tunnelIP)
-                        dismiss()
-                    }''',
-        '''                    Button("Done") {
-                        dismiss()
-                    }''',
-        1,
-    )
+    # Remove ALL obsolete tunnel state and side effects. Earlier localization
+    # passes may have translated the Done label, so use structural regexes.
+    import re
+    content = re.sub(r'^[ \t]*@State private var tunnelIP[^\n]*\n', '', content, flags=re.M)
+    content = re.sub(r'^[ \t]*@State private var tunnelSaved[^\n]*\n', '', content, flags=re.M)
+    content = re.sub(r'^[ \t]*TunnelConfig\.setTargetIP\(tunnelIP\)[^\n]*\n', '', content, flags=re.M)
+    content = re.sub(r'^[ \t]*tunnelIP\s*=\s*[^\n]+\n', '', content, flags=re.M)
 
     # Final validation: the old UI must not remain.
     for leaked in (
