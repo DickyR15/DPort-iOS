@@ -12,7 +12,7 @@ if not ROOT_VIEW.exists():
 
 s = ROOT_VIEW.read_text(encoding="utf-8")
 
-# DPort Build 74: immediate LocalDevVPN prompt when the app opens without the tunnel.
+# DPort Build 75: immediate LocalDevVPN prompt when the app opens without the tunnel.
 root_alert = '''        .alert("DPort", isPresented: Binding(
             get: { session.lastError != nil },
             set: { if !$0 { session.lastError = nil } }
@@ -57,6 +57,16 @@ if SPOOF_SESSION.exists():
             "        locationKeeper.start()\n        let start = simulated ?? pin ?? locationKeeper.lastKnownCoordinate",
             1
         )
+
+    # Keep joystick alive after Stop. The first joystick movement after Stop
+    # reuses the latest real GPS coordinate and starts simulation again.
+    if "private func tickJoystick(pairing: PairingStore)" in ss:
+        old_tick = """    private func tickJoystick(pairing: PairingStore) {
+        guard joystickActive, let current = simulated else { return }"""
+        new_tick = """    private func tickJoystick(pairing: PairingStore) {
+        guard joystickActive else { return }
+        guard let current = simulated ?? locationKeeper.lastKnownCoordinate else { return }"""
+        ss = ss.replace(old_tick, new_tick, 1)
 
     stop_start = ss.find("    func stop(pairing: PairingStore) {")
     stop_end = ss.find("\n    }\n\n    /// Best-known real device coordinate", stop_start)
@@ -305,7 +315,7 @@ ROOT_VIEW.write_text(s, encoding="utf-8")
 
 # Build 73 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "74"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "75"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
 print("DPort Build 73 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
