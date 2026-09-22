@@ -27,7 +27,10 @@ jobs:
       - name: Fetch upstream Locus source
         run: |
           set -euo pipefail
-          git clone --depth 1 https://github.com/ChrisMack32/Locus.git upstream-locus
+          git clone https://github.com/ChrisMack32/Locus.git upstream-locus
+          cd upstream-locus
+          git checkout c1cc43dcf33420f03ebb900ad748c1f82e97154b
+          cd ..
           mkdir -p src-build
           rsync -a --exclude='.git' upstream-locus/ src-build/
 
@@ -35,11 +38,9 @@ jobs:
         working-directory: src-build
         run: |
           set -euo pipefail
-          python3 ../scripts/apply_dport.py
           python3 ../scripts/apply_dport_build39.py
-          python3 ../scripts/fix_localdevvpn_build52.py
 
-      - name: Set DPort version to Build 64
+      - name: Set DPort version to Build 65
         working-directory: src-build
         run: |
           set -euo pipefail
@@ -48,7 +49,7 @@ jobs:
           import re
           p=Path('project.yml')
           s=p.read_text()
-          s=re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "64"', s, count=1)
+          s=re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "65"', s, count=1)
           p.write_text(s)
           PY
           grep 'CURRENT_PROJECT_VERSION' project.yml
@@ -70,41 +71,27 @@ jobs:
           set -euo pipefail
           xcodebuild             -project DPort.xcodeproj             -scheme DPort             -configuration Release             -destination 'generic/platform=iOS'             -derivedDataPath build/DerivedData             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             DEVELOPMENT_TEAM=             build
 
-      - name: Package DPort 6.9.5 Build 64 IPA
+      - name: Package DPort 6.9.5 Build 65 IPA
         working-directory: src-build
         run: |
           set -euo pipefail
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/DPort.app"
           test -d "$APP_PATH"
-          rm -rf Payload DPort-6.9.5-Build64-TW.ipa DPort-6.9.5-Build64-TW.sha256
+          rm -rf Payload DPort-6.9.5-Build65-TW.ipa DPort-6.9.5-Build65-TW.sha256
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/DPort.app
-          zip -qry DPort-6.9.5-Build64-TW.ipa Payload/DPort.app
-          unzip -t DPort-6.9.5-Build64-TW.ipa
-          shasum -a 256 DPort-6.9.5-Build64-TW.ipa > DPort-6.9.5-Build64-TW.sha256
-          test -s DPort-6.9.5-Build64-TW.ipa
-          test -s DPort-6.9.5-Build64-TW.sha256
-          ls -lh DPort-6.9.5-Build64-TW.ipa DPort-6.9.5-Build64-TW.sha256
+          zip -qry DPort-6.9.5-Build65-TW.ipa Payload/DPort.app
+          unzip -t DPort-6.9.5-Build65-TW.ipa
+          shasum -a 256 DPort-6.9.5-Build65-TW.ipa > DPort-6.9.5-Build65-TW.sha256
+          test -s DPort-6.9.5-Build65-TW.ipa
+          test -s DPort-6.9.5-Build65-TW.sha256
+          ls -lh DPort-6.9.5-Build65-TW.ipa DPort-6.9.5-Build65-TW.sha256
 
-      - name: Upload DPort 6.9.5 Build 64
+      - name: Upload DPort 6.9.5 Build 65
         uses: actions/upload-artifact@v7
         with:
-          name: DPort-6.9.5-Build64-TW
+          name: DPort-6.9.5-Build65-TW
           path: |
-            src-build/DPort-6.9.5-Build64-TW.ipa
-            src-build/DPort-6.9.5-Build64-TW.sha256
+            src-build/DPort-6.9.5-Build65-TW.ipa
+            src-build/DPort-6.9.5-Build65-TW.sha256
           if-no-files-found: error
-
-      - name: Publish direct IPA release asset
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          TAG="dport-build-64"
-          IPA="src-build/DPort-6.9.5-Build64-TW.ipa"
-          SHA="src-build/DPort-6.9.5-Build64-TW.sha256"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$IPA" "$SHA" --clobber
-          else
-            gh release create "$TAG" "$IPA" "$SHA" --title "DPort 6.9.5 Build 64" --notes "DPort Build 64 — restore the known-working pre-Build60 LocationEngine/RPPairing path. Direct IPA; no nested ZIP."
-          fi
