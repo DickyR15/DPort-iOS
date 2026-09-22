@@ -130,6 +130,8 @@ new_block = r'''struct BottomControlsView: View {
     @Binding var showCoordinates: Bool
 
     private let trayShape = RoundedRectangle(cornerRadius: 28, style: .continuous)
+    @State private var modeNotice: String?
+    @State private var modeNoticeTask: Task<Void, Never>?
 
     private var locateTitle: String {
         session.isSpoofing ? "更新定位" : "定位"
@@ -183,6 +185,12 @@ new_block = r'''struct BottomControlsView: View {
                             .fill(session.isSpoofing ? LocusTheme.statusGood : Color.blue)
                             .frame(width: 7, height: 7)
                         Text(session.isSpoofing ? "模擬 GPS" : "真實 GPS")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("•")
+                            .foregroundStyle(.secondary)
+                        Text(session.isSpoofing
+                             ? (session.joystickSpeedKmh > 0.1 ? "移動中" : "已停止移動")
+                             : "待命")
                             .font(.system(size: 10, weight: .semibold))
                         Text("•")
                             .foregroundStyle(.secondary)
@@ -266,7 +274,8 @@ new_block = r'''struct BottomControlsView: View {
                             .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
-                        .disabled(session.isBusy)
+                        .opacity(LocalDevVPN.isConnected ? 1.0 : 0.45)
+                        .disabled(session.isBusy || !LocalDevVPN.isConnected)
 
                         Button {
                             guard session.isSpoofing || session.simulated != nil else {
@@ -311,9 +320,44 @@ new_block = r'''struct BottomControlsView: View {
             .contentShape(trayShape)
         }
         .frame(height: 276)
+        .overlay(alignment: .top) {
+            if let modeNotice {
+                Text(modeNotice)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .shadow(radius: 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .padding(.top, -10)
+            }
+        }
         .onAppear {
             if pairing.hasPairingFile && !session.joystickActive && LocalDevVPN.isConnected {
                 session.startJoystick(pairing: pairing)
+            }
+        }
+        .onDisappear { modeNoticeTask?.cancel() }
+    }
+
+    private func showModeNotice(_ title: String) {
+        modeNoticeTask?.cancel()
+        let speed: String
+        switch session.travelMode {
+        case .walk: speed = "6 km/h"
+        case .run: speed = "15 km/h"
+        case .cycle: speed = "35 km/h"
+        case .drive: speed = "120 km/h"
+        }
+        withAnimation(.easeOut(duration: 0.2)) {
+            modeNotice = "(title) · 最高 (speed)"
+        }
+        modeNoticeTask = Task {
+            try? await Task.sleep(for: .milliseconds(1100))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(.easeIn(duration: 0.2)) { modeNotice = nil }
             }
         }
     }
@@ -442,7 +486,7 @@ ROOT_VIEW.write_text(s, encoding="utf-8")
 
 # Build 73 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "80"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "81"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
-print("DPort Build 80 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
+print("DPort Build 81 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
