@@ -1019,3 +1019,75 @@ if _settings_path.exists():
 
 
 print(f"DPort branding/localization applied: {len(TRANSLATIONS)} strings + final UI hardening.")
+
+
+
+# Build 60 — force a fresh RPPairing/RSD connection for every location action
+# and surface the real FFI error instead of collapsing it to a generic failure.
+def _patch_location_engine_fresh_connection():
+    p = ROOT / "Locus/Engine/LocationEngine.swift"
+    if not p.exists():
+        return
+    c = p.read_text(encoding="utf-8")
+
+    c = c.replace(
+        'case .tunnelCreate: return "無法開啟開發者通道。請確認 LocalDevVPN 已在 Wi‑Fi 上連線。"',
+        'case .tunnelCreate: return "無法建立開發者通道"',
+    )
+    c = c.replace(
+        'case .remoteServer: return "Connected to the tunnel but RemoteXPC handshake failed."',
+        'case .remoteServer: return "RSD 開發者通道交握失敗"',
+    )
+
+    # Never trust cached adapter/handshake/remoteServer handles after a
+    # previous operation. LocalDevVPN may remain "connected" while the
+    # underlying RPPairing session has gone stale.
+    needle = '''    private static func setLocked(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String) -> Int32 {
+        if let locationSimulation {'''
+    repl = '''    private static func setLocked(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String) -> Int32 {
+        // iOS 27 + LocalDevVPN: force a fresh developer tunnel for every
+        // user action. A non-nil FFI handle does not prove the tunnel is
+        // still alive; re-establishing the RPPairing/RSD session is cheap.
+        if locationSimulation == nil {
+            cleanup()
+        }
+        if let locationSimulation {'''
+    if needle in c:
+        c = c.replace(needle, repl, 1)
+
+    # Capture the exact FFI error before freeing it. This is written to the
+    # system log so the next failure is diagnosable without another blind
+    # build. Keep the user-facing error short.
+    old = '''        if let providerError {
+            idevice_error_free(providerError)
+            cleanup()
+            return tunnelCreate
+        }'''
+    new = '''        if let providerError {
+            let message = providerError.pointee.message.map { String(cString: $0) } ?? "unknown"
+            NSLog("DPort RPPairing tunnel_create_rppairing failed: code=\\\\(providerError.pointee.code) sub=\\\\(providerError.pointee.sub_code) message=\\\\(message)")
+            idevice_error_free(providerError)
+            cleanup()
+            return tunnelCreate
+        }'''
+    if old in c:
+        c = c.replace(old, new, 1)
+
+    old = '''        if let remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer) {
+            idevice_error_free(remoteServerError)
+            cleanup()
+            return remoteServerCode
+        }'''
+    new = '''        if let remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer) {
+            let message = remoteServerError.pointee.message.map { String(cString: $0) } ?? "unknown"
+            NSLog("DPort RSD handshake failed: code=\\\\(remoteServerError.pointee.code) sub=\\\\(remoteServerError.pointee.sub_code) message=\\\\(message)")
+            idevice_error_free(remoteServerError)
+            cleanup()
+            return remoteServerCode
+        }'''
+    if old in c:
+        c = c.replace(old, new, 1)
+
+    p.write_text(c, encoding="utf-8")
+
+_patch_location_engine_fresh_connection()
