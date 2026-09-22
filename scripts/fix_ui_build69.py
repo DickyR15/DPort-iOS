@@ -354,6 +354,8 @@ new_block = r'''struct BottomControlsView: View {
     }
 
     private func showModeNotice(_ title: String) {
+    }
+
     private func showToast(_ message: String) {
         toastTask?.cancel()
         withAnimation(.easeOut(duration: 0.18)) { toastMessage = message }
@@ -362,7 +364,6 @@ new_block = r'''struct BottomControlsView: View {
             guard !Task.isCancelled else { return }
             await MainActor.run { withAnimation(.easeIn(duration: 0.18)) { toastMessage = nil } }
         }
-    }
 
         modeNoticeTask?.cancel()
         let speed: String
