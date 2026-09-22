@@ -345,14 +345,49 @@ for swift in ROOT.joinpath("Locus").rglob("*.swift"):
 vpn_path = ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
 if vpn_path.exists():
     vpn = vpn_path.read_text(encoding="utf-8")
+    # Keep installation state separate from tunnel connectivity.
+    # canOpenURL may transiently return false on iOS while the VPN is
+    # disconnected; once DPort has confirmed/used LocalDevVPN, remember that
+    # the app is installed. Connectivity is still determined independently.
+    marker = '    static let detectURL = URL(string: "localdevvpn://")!\\n'
+    if 'static let installationKey = "dport.localdevvpn.installed"' not in vpn:
+        vpn = vpn.replace(
+            marker,
+            marker
+            + '    static let installationKey = "dport.localdevvpn.installed"\\n'
+        )
+    old_installed = '''    static var isInstalled: Bool {
+        UIApplication.shared.canOpenURL(detectURL)
+    }'''
+    new_installed = '''    static var isInstalled: Bool {
+        if UIApplication.shared.canOpenURL(detectURL) {
+            UserDefaults.standard.set(true, forKey: installationKey)
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: installationKey)
+    }'''
+    if old_installed in vpn:
+        vpn = vpn.replace(old_installed, new_installed)
+    old_connected = '''        if addresses.contains(target) { return true }'''
+    new_connected = '''        if addresses.contains(target) {
+            UserDefaults.standard.set(true, forKey: installationKey)
+            return true
+        }'''
+    vpn = vpn.replace(old_connected, new_connected)
     vpn = vpn.replace(
-        '        let target = TunnelConfig.targetIP\n'
-        '        if addresses.contains(target) { return true }\n',
-        '        let target = TunnelConfig.targetIP\n'
-        '        if addresses.contains(target) { return true }\n'
-        '        // Current LocalDevVPN is point-to-point: the peer (10.7.0.1)\n'
-        '        // is not assigned to the iPhone; the utun endpoint is 10.7.1.1.\n'
-        '        if addresses.contains(where: { $0.hasPrefix("10.7.1.") }) { return true }\n'
+        '        return addresses.contains { $0.hasPrefix(prefix) }',
+        '''        let connected = addresses.contains { $0.hasPrefix(prefix) }
+        if connected {
+            UserDefaults.standard.set(true, forKey: installationKey)
+        }
+        return connected'''
+    )
+    vpn = vpn.replace(
+        '    static func openInstalled() {\n        UIApplication.shared.open(enableURL)\n    }',
+        '''    static func openInstalled() {
+        UserDefaults.standard.set(true, forKey: installationKey)
+        UIApplication.shared.open(enableURL)
+    }'''
     )
     vpn_path.write_text(vpn, encoding="utf-8")
 
