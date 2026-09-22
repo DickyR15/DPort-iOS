@@ -518,19 +518,12 @@ def patch_vpn_integration(s):
         )
 
     installed = '''    static var isInstalled: Bool {
-        // A live LocalDevVPN tunnel proves the app is installed even when
-        // iOS temporarily returns false from canOpenURL().
-        if isConnected {
-            UserDefaults.standard.set(true, forKey: installationKey)
-            return true
-        }
-
-        if UIApplication.shared.canOpenURL(detectURL) || UIApplication.shared.canOpenURL(enableURL) {
-            UserDefaults.standard.set(true, forKey: installationKey)
-            return true
-        }
-
-        return UserDefaults.standard.bool(forKey: installationKey)
+        // Installation state must reflect the actual presence of
+        // LocalDevVPN. Never use UserDefaults as an installation cache:
+        // if the user removes LocalDevVPN, canOpenURL() must immediately
+        // report false.
+        return UIApplication.shared.canOpenURL(detectURL)
+            || UIApplication.shared.canOpenURL(enableURL)
     }'''
     s, n = re.subn(
         r'    static var isInstalled: Bool \{.*?\n    \}',
@@ -568,18 +561,10 @@ def patch_vpn_integration(s):
     s = re.sub(
         r'    static func openInstalled\(\) \{.*?\n    \}',
         '''    static func openInstalled() {
-        UserDefaults.standard.set(true, forKey: installationKey)
-
-        // When already connected, only open the LocalDevVPN app UI.
-        // When disconnected, use its documented enable deep-link.
+        // The caller has already verified that LocalDevVPN is installed.
+        // Do not write an installation cache here; removal must be detectable.
         let url = isConnected ? detectURL : enableURL
-        UIApplication.shared.open(url) { success in
-            if !success {
-                // Do not silently send an installed app to App Store because
-                // of a transient URL-routing failure.
-                UserDefaults.standard.set(true, forKey: installationKey)
-            }
-        }
+        UIApplication.shared.open(url)
     }''',
         s,
         count=1,
