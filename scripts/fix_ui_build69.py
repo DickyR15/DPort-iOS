@@ -458,7 +458,7 @@ ROOT_VIEW.write_text(s, encoding="utf-8")
 
 # Build 73 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "77"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "79"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
-print("DPort Build 78 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
+print("DPort Build 79 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
