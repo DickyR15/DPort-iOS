@@ -799,5 +799,122 @@ project=project.replace('MARKETING_VERSION: "6.9.2"','MARKETING_VERSION: "6.9.5"
 project=project.replace('CURRENT_PROJECT_VERSION: "39"','CURRENT_PROJECT_VERSION: "51"')
 PROJECT.write_text(project,encoding="utf-8")
 
+
+# Build 67 — final home-screen layout polish.
+root = ROOT / "Locus/Features/Map/RootView.swift"
+if root.exists():
+    s = root.read_text(encoding="utf-8")
+
+    # Keep the live joystick on the LEFT side.
+    s = s.replace(
+        '.frame(maxWidth: .infinity, alignment: .trailing)',
+        '.frame(maxWidth: .infinity, alignment: .leading)',
+        1,
+    )
+
+    # Add visible Traditional Chinese labels to the four travel modes.
+    old_mode = '''                    label: {
+                        Image(systemName: mode.icon)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(selected ? .black : .primary)
+                            .frame(width: 44, height: 40)
+                            .background(
+                                Capsule().fill(selected ? LocusTheme.accent : Color.primary.opacity(0.08))
+                            )
+                            .contentShape(Capsule())
+                    }'''
+    new_mode = '''                    label: {
+                        VStack(spacing: 2) {
+                            Image(systemName: mode.icon)
+                                .font(.body.weight(.semibold))
+                            Text(localTravelModeName(mode))
+                                .font(.caption2.weight(.semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
+                        .foregroundStyle(selected ? .black : .primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(
+                            Capsule().fill(selected ? LocusTheme.accent : Color.primary.opacity(0.08))
+                        )
+                        .contentShape(Capsule())
+                    }'''
+    if old_mode in s:
+        s = s.replace(old_mode, new_mode, 1)
+
+    if 'private func localTravelModeName(_ mode: TravelMode)' not in s:
+        anchor = '''    private func trayIcon(_ systemName: String, action: @escaping () -> Void) -> some View {'''
+        helper = '''    private func localTravelModeName(_ mode: TravelMode) -> String {
+        switch mode {
+        case .walk: return "步行"
+        case .run: return "跑步"
+        case .cycle: return "自行車"
+        case .drive: return "駕車"
+        }
+    }
+
+'''
+        if anchor in s:
+            s=s.replace(anchor,helper+anchor,1)
+
+    # Rename the utility controls to clear Chinese labels without changing
+    # their actions.
+    s = s.replace(
+        'trayIcon("gearshape.fill") { showSettings = true }',
+        'labeledTrayIcon("gearshape.fill", "設定") { showSettings = true }',
+        1
+    )
+    s = s.replace(
+        'trayIcon("star.fill") { showPlaces = true }',
+        'labeledTrayIcon("star.fill", "我的最愛") { showPlaces = true }',
+        1
+    )
+    s = s.replace(
+        'trayIcon("mappin.and.ellipse") { showCoordinates = true }',
+        'labeledTrayIcon("mappin.and.ellipse", "座標") { showCoordinates = true }',
+        1
+    )
+
+    if 'private func labeledTrayIcon(_ systemName: String' not in s:
+        anchor = '''    private func trayIcon(_ systemName: String, action: @escaping () -> Void) -> some View {'''
+        helper = '''    private func labeledTrayIcon(
+        _ systemName: String,
+        _ title: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: systemName)
+                    .font(.body.weight(.semibold))
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.primary.opacity(0.07))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+'''
+        if anchor in s:
+            s=s.replace(anchor,helper+anchor,1)
+
+    root.write_text(s,encoding="utf-8")
+
+# Build 67 is the first UI-polish build after the confirmed working Build 65.
+project=PROJECT.read_text(encoding="utf-8")
+project=re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "67"', project, count=1)
+PROJECT.write_text(project,encoding="utf-8")
+
+print("DPort Build 67 UI polish applied.")
+
 print("DPort Build 51 automatic VPN setup layer applied.")
 
