@@ -856,41 +856,50 @@ for rel in [
 # This is deliberately performed here (after localization) so later build
 # scripts cannot leave the old "通道 / 10.7.0.1 / 儲存通道 IP" UI behind.
 def _hardening_settings_vpn(path: Path):
+    import re
     content = path.read_text(encoding="utf-8")
 
-    # Remove a previously injected DPort VPN section first, so this pass is
-    # idempotent and never creates duplicate VPN sections.
-    vpn_start = content.find('                Section("VPN 連線") {')
-    if vpn_start >= 0:
-        vpn_end = content.find('\n                Section', vpn_start + 10)
-        if vpn_end < 0:
-            vpn_end = content.find('\n            }\n            .navigationTitle', vpn_start)
-        if vpn_end > vpn_start:
-            content = content[:vpn_start] + content[vpn_end + 1:]
+    # Remove the upstream Tunnel/通道 section by structure, not by exact
+    # localized strings. The localization pass may already have translated
+    # Device tunnel IP -> 裝置通道 IP and Tunnel -> 通道.
+    privacy_re = r'(?m)^[ \t]{16}Section\("(?:(?:隱私權)|(?:Privacy))"\)'
+    privacy_match = re.search(privacy_re, content)
 
-    # The upstream Tunnel section is stable from the TextField through the
-    # Privacy section. Support both the localized and original labels.
-    tunnel_labels = [
-        '                Section {\\n                    TextField("裝置通道 IP"',
-        '                Section {\\n                    TextField("Device tunnel IP"',
-    ]
-    privacy_labels = [
-        '                Section("隱私權")',
-        '                Section("Privacy")',
-    ]
+    tunnel_re = re.compile(
+        r'(?ms)^[ \t]{16}Section \{\s*'
+        r'(?:(?!^[ \t]{16}Section(?:\(| \{)).)*?'
+        r'^[ \t]{16}\} header: \{\s*'
+        r'Text\("(?:通道|Tunnel)"\)\s*'
+        r'\} footer: \{\s*'
+        r'Text\([^)]*10\.7\.0\.1[^)]*\)\s*'
+        r'\}\s*'
+    )
 
-    t0 = -1
-    for label in tunnel_labels:
-        t0 = content.find(label)
-        if t0 >= 0:
-            break
+    m = tunnel_re.search(content)
+    if m:
+        content = content[:m.start()] + content[m.end():]
+    else:
+        # Fallback: locate the Section that contains either tunnel-IP label
+        # and remove it up to the following Privacy section.
+        marker = re.search(
+            r'(?ms)^[ \t]{16}Section \{\s*'
+            r'(?:(?!^[ \t]{16}Section(?:\(| \{)).)*?'
+            r'TextField\("(?:裝置通道 IP|Device tunnel IP)"'
+            r'(?:(?!^[ \t]{16}Section(?:\(| \{)).)*?'
+            r'^[ \t]{16}\} header: \{\s*'
+            r'Text\("(?:通道|Tunnel)"\)\s*\}\s*'
+            r'(?:footer: \{.*?\}\s*)?'
+        , content)
+        if marker:
+            content = content[:marker.start()] + content[marker.end():]
 
-    p0 = -1
-    if t0 >= 0:
-        for label in privacy_labels:
-            p0 = content.find(label, t0)
-            if p0 >= 0:
-                break
+    # Remove any previously injected DPort VPN section to keep this pass
+    # idempotent.
+    vpn_re = re.compile(
+        r'(?ms)^[ \t]{16}Section\("VPN 連線"\) \{.*?'
+        r'^[ \t]{16}\}\s*(?=^[ \t]{16}Section)'
+    )
+    content = vpn_re.sub("", content, count=1)
 
     vpn_section = '''                Section("VPN 連線") {
                     LabeledContent("LocalDevVPN") {
@@ -932,26 +941,19 @@ def _hardening_settings_vpn(path: Path):
                 }
 
 '''
-
-    if t0 >= 0 and p0 > t0:
-        content = content[:t0] + vpn_section + content[p0:]
-    elif 'Section("VPN 連線")' not in content:
-        # Upstream layout changed: insert immediately before Privacy.
-        p0 = -1
-        for label in privacy_labels:
-            p0 = content.find(label)
-            if p0 >= 0:
-                break
-        if p0 >= 0:
-            content = content[:p0] + vpn_section + content[p0:]
-        else:
-            raise SystemExit("DPort: unable to locate Settings insertion point")
+    # Insert before Privacy/隱私權. If the privacy section has moved, fail
+    # with a useful message rather than silently producing a broken UI.
+    privacy = re.search(privacy_re, content)
+    if not privacy:
+        raise SystemExit("DPort: unable to locate Privacy section after tunnel cleanup")
+    content = content[:privacy.start()] + vpn_section + content[privacy.start():]
 
     # Remove obsolete state/side effects if present.
     content = content.replace('    @State private var tunnelIP = TunnelConfig.targetIP\n', '')
     content = content.replace('    @State private var vpnConfigured = LocalDevVPN.isConfigured\n', '')
     content = content.replace('    @State private var tunnelSaveMessage = ""\n', '')
     content = content.replace('    @State private var showTunnelSaveMessage = false\n', '')
+
     content = content.replace(
         '''                    Button("Done") {
                         TunnelConfig.setTargetIP(tunnelIP)
@@ -973,13 +975,14 @@ def _hardening_settings_vpn(path: Path):
         1,
     )
 
-    # The Settings UI must never contain these old labels after this pass.
-    for leaked in (
+    # Hard validation: these legacy UI strings must be gone from SettingsView.
+    legacy = (
         '"裝置通道 IP"', '"Device tunnel IP"',
         '"儲存通道 IP"', '"Save tunnel IP"',
-        '"通道"', '"Tunnel"',
+        'Text("通道")', 'Text("Tunnel")',
         '10.7.0.1',
-    ):
+    )
+    for leaked in legacy:
         if leaked in content:
             raise SystemExit(f"DPort: legacy tunnel UI remains: {leaked}")
 
