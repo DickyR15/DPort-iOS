@@ -477,43 +477,13 @@ if not rsd_pat.search(ls):
     raise SystemExit("Build59: exact RSD block not found")
 ls = rsd_pat.sub(rsd_repl, ls, count=1)
 
-# Add a tiny route sanity check by probing the configured RSD endpoint before
-# the FFI handshake. This is intentionally diagnostic only; it does not alter
-# the VPN or send application data.
-marker='''        guard let pairingHandle else { return pairingRead }
-        defer { rp_pairing_file_free(pairingHandle) }
-'''
-probe='''        guard let pairingHandle else { return pairingRead }
-        defer { rp_pairing_file_free(pairingHandle) }
-
-        // If the VPN route is absent, report it explicitly rather than
-        // misleadingly blaming the pairing file.
-        let probeFD = socket(AF_INET, SOCK_STREAM, 0)
-        if probeFD >= 0 {
-            var tv = timeval(tv_sec: 2, tv_usec: 0)
-            setsockopt(probeFD, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-            setsockopt(probeFD, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-            let probeResult = withUnsafePointer(to: &address) {
-                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    connect(probeFD, $0, socklen_t(MemoryLayout<sockaddr_in>.stride))
-                }
-            }
-            close(probeFD)
-            if probeResult != 0 {
-                lastTunnelErrorMessage = "無法連線 \(deviceIP):49152（errno \(errno)）。請檢查 LocalDevVPN 的 Device IP／通道路由。"
-            }
-        }
-'''
-if marker not in ls:
-    raise SystemExit("Build59: pairing marker not found")
-ls=ls.replace(marker,probe,1)
 
 location.write_text(ls, encoding="utf-8")
 
 project = ROOT / "project.yml"
 if project.exists():
     ps = project.read_text(encoding="utf-8")
-    ps = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "59"', ps)
+    ps = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "60"', ps)
     project.write_text(ps, encoding="utf-8")
 
-print("DPort Build 59: robust RPPairing/RSD retries + real FFI diagnostics + route probe.")
+print("DPort Build 60: clean RPPairing/RSD startup with retry and diagnostics.")
