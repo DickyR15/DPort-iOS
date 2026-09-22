@@ -1393,3 +1393,169 @@ def patch_build61_multihost():
         project.write_text(ps, encoding="utf-8")
 
 patch_build61_multihost()
+
+
+
+# Build 62 — use the current idevice-ffi multihost RPPairing transport.
+# The iOS 27 LocalDevVPN path is not equivalent to a plain
+# tunnel_create_rppairing() call: after RPPairing opens its listener, the
+# listener may be reachable on a different local-network candidate. The
+# current idevice-ffi implementation handles that complete handshake in
+# tunnel_create_rppairing_multihost(). Build 61 attempted the candidate
+# addresses around the old API from Swift; that is insufficient because the
+# candidate selection belongs inside the RPPairing provider.
+def patch_build62_multihost():
+    p = ROOT / "Locus/Engine/LocationEngine.swift"
+    if not p.exists():
+        raise SystemExit("Build62: LocationEngine.swift not found")
+    c = p.read_text(encoding="utf-8")
+    import re
+
+    # The workflow supplies the current idevice-ffi header/library containing
+    # tunnel_create_rppairing_multihost().
+    new_func = r'''    private static func setLocked(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String) -> Int32 {
+        if let locationSimulation {
+            if let err = location_simulation_set(locationSimulation, latitude, longitude) {
+                idevice_error_free(err)
+                cleanup()
+            } else {
+                return ok
+            }
+        }
+
+        var address = sockaddr_in()
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = in_port_t(49152).bigEndian
+        guard deviceIP.withCString({ inet_pton(AF_INET, $0, &address.sin_addr) }) == 1 else {
+            return invalidIP
+        }
+
+        var pairingHandle: OpaquePointer?
+        if let pairingError = pairingPath.withCString({ rp_pairing_file_read($0, &pairingHandle) }) {
+            let message = pairingError.pointee.message.map { String(cString: $0) } ?? "unknown"
+            NSLog("DPort pairing file read failed: code=%d sub=%d message=%@", pairingError.pointee.code, pairingError.pointee.sub_code, message)
+            idevice_error_free(pairingError)
+            return pairingRead
+        }
+        guard let pairingHandle else { return pairingRead }
+        defer { rp_pairing_file_free(pairingHandle) }
+
+        // Extra hosts are only candidates for the *dynamic listener* created
+        // inside the RPPairing protocol. The fixed RSD/RPPairing endpoint stays
+        // at LocalDevVPN's 10.7.0.1:49152.
+        var hostStorage: [String] = []
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        if getifaddrs(&ifaddr) == 0, let first = ifaddr {
+            defer { freeifaddrs(ifaddr) }
+            var ptr: UnsafeMutablePointer<ifaddrs>? = first
+            while let current = ptr {
+                let a = current.pointee
+                if let sa = a.ifa_addr, sa.pointee.sa_family == UInt8(AF_INET) {
+                    var sin = sa.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee }
+                    let ip = withUnsafePointer(to: &sin.sin_addr) { p in
+                        p.withMemoryRebound(to: in_addr.self, capacity: 1) {
+                            String(cString: inet_ntoa($0.pointee))
+                        }
+                    }
+                    if !ip.isEmpty &&
+                       ip != "127.0.0.1" &&
+                       !ip.hasPrefix("10.7.0.") &&
+                       !hostStorage.contains(ip) {
+                        hostStorage.append(ip)
+                    }
+                }
+                ptr = a.ifa_next
+            }
+        }
+
+        let cHosts: [UnsafeMutablePointer<CChar>?] = hostStorage.map { strdup($0) }
+        defer {
+            for p in cHosts {
+                if let p { free(p) }
+            }
+        }
+
+        var extraHosts = cHosts
+        var failureKind: TunnelFailureKind = TunnelFailureNone
+        var newAdapter: OpaquePointer?
+        var newHandshake: OpaquePointer?
+
+        cleanup()
+        let providerError = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                "LocusLocation".withCString { hostname in
+                    extraHosts.withUnsafeBufferPointer { buffer in
+                        tunnel_create_rppairing_multihost(
+                            $0,
+                            socklen_t(MemoryLayout<sockaddr_in>.stride),
+                            hostname,
+                            pairingHandle,
+                            nil,
+                            nil,
+                            buffer.baseAddress,
+                            UInt(buffer.count),
+                            &failureKind,
+                            &newAdapter,
+                            &newHandshake
+                        )
+                    }
+                }
+            }
+        }
+
+        if let providerError {
+            let message = providerError.pointee.message.map { String(cString: $0) } ?? "unknown"
+            NSLog(
+                "DPort RPPairing multihost failed: kind=%d code=%d sub=%d message=%@ hosts=%@",
+                failureKind.rawValue,
+                providerError.pointee.code,
+                providerError.pointee.sub_code,
+                message,
+                hostStorage.joined(separator: ",")
+            )
+            idevice_error_free(providerError)
+            cleanup()
+            return tunnelCreate
+        }
+
+        guard let newAdapter, let newHandshake else {
+            NSLog("DPort RPPairing multihost returned without valid handles: kind=%d", failureKind.rawValue)
+            cleanup()
+            return tunnelCreate
+        }
+
+        adapter = newAdapter
+        handshake = newHandshake
+
+        if let remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer) {
+            let message = remoteServerError.pointee.message.map { String(cString: $0) } ?? "unknown"
+            NSLog("DPort RSD handshake failed after multihost: code=%d sub=%d message=%@", remoteServerError.pointee.code, remoteServerError.pointee.sub_code, message)
+            idevice_error_free(remoteServerError)
+            cleanup()
+            return remoteServerCode
+        }
+
+        if let simError = location_simulation_new(remoteServer, &locationSimulation) {
+            idevice_error_free(simError)
+            cleanup()
+            return simulationCreate
+        }
+        remoteServer = nil
+
+        if let setError = location_simulation_set(locationSimulation, latitude, longitude) {
+            idevice_error_free(setError)
+            cleanup()
+            return locationSet
+        }
+        return ok
+    }
+
+'''
+    pat = re.compile(r'    private static func setLocked\(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String\) -> Int32 \{.*?\n    \}\n\n    private static func clearLocked', re.S)
+    m = pat.search(c)
+    if not m:
+        raise SystemExit("Build62: setLocked function not found")
+    c = c[:m.start()] + new_func + '    private static func clearLocked' + c[m.end():]
+    p.write_text(c, encoding="utf-8")
+
+patch_build62_multihost()
