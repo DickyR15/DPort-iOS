@@ -6,6 +6,7 @@ ROOT = Path.cwd()
 PROJECT = ROOT / "project.yml"
 ROOT_VIEW = ROOT / "Locus/Features/Map/RootView.swift"
 SPOOF_SESSION = ROOT / "Locus/Engine/SpoofSession.swift"
+MAP_HOME = ROOT / "Locus/Features/Map/MapHomeView.swift"
 
 if not ROOT_VIEW.exists():
     raise SystemExit("RootView.swift not found")
@@ -360,11 +361,62 @@ s = s.replace(
     1,
 )
 
+
+# Build 77: use the DPort app icon as the simulated GPS marker.
+if MAP_HOME.exists():
+    mh = MAP_HOME.read_text(encoding="utf-8")
+    old = """                    if let sim = session.simulated {
+                        Annotation("Spoof", coordinate: sim) {
+                            ZStack {
+                                Circle().fill(LocusTheme.accent.opacity(0.25)).frame(width: 44, height: 44)
+                                Circle().fill(LocusTheme.accent).frame(width: 14, height: 14)
+                                    .overlay(Circle().stroke(.white, lineWidth: 2))
+                            }
+                        }
+                    }"""
+    new = """                    if let sim = session.simulated {
+                        Annotation("DPort", coordinate: sim, anchor: .center) {
+                            DPortSimulatedMarker(isActive: session.isSpoofing)
+                        }
+                    }"""
+    if old in mh:
+        mh = mh.replace(old, new, 1)
+    if "struct DPortSimulatedMarker: View" not in mh:
+        mh += """
+
+private struct DPortSimulatedMarker: View {
+    let isActive: Bool
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(LocusTheme.accent.opacity(isActive ? 0.22 : 0.14))
+                .frame(width: pulse ? 56 : 48, height: pulse ? 56 : 48)
+            Image("DPortMapPin")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 34, height: 34)
+                .shadow(color: .black.opacity(0.28), radius: 3, y: 2)
+        }
+        .scaleEffect(pulse ? 1.04 : 1.0)
+        .animation(
+            isActive ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true) : .default,
+            value: pulse
+        )
+        .onAppear { pulse = isActive }
+        .onChange(of: isActive) { _, active in pulse = active }
+        .accessibilityLabel("DPort 模擬位置")
+    }
+}
+"""
+    MAP_HOME.write_text(mh, encoding="utf-8")
+
 ROOT_VIEW.write_text(s, encoding="utf-8")
 
 # Build 73 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "76"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "77"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
-print("DPort Build 73 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
+print("DPort Build 77 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
