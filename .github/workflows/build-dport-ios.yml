@@ -87,20 +87,20 @@ jobs:
           rm -rf Payload DPort-6.9.5-Build68-TW.ipa DPort-6.9.5-Build68-TW.sha256
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/DPort.app
-          zip -qry DPort-6.9.5-Build67-TW.ipa Payload/DPort.app
-          unzip -t DPort-6.9.5-Build67-TW.ipa
-          shasum -a 256 DPort-6.9.5-Build67-TW.ipa > DPort-6.9.5-Build67-TW.sha256
-          test -s DPort-6.9.5-Build67-TW.ipa
-          test -s DPort-6.9.5-Build67-TW.sha256
-          ls -lh DPort-6.9.5-Build67-TW.ipa DPort-6.9.5-Build67-TW.sha256
+          zip -qry DPort-6.9.5-Build68-TW.ipa Payload/DPort.app
+          unzip -t DPort-6.9.5-Build68-TW.ipa
+          shasum -a 256 DPort-6.9.5-Build68-TW.ipa > DPort-6.9.5-Build68-TW.sha256
+          test -s DPort-6.9.5-Build68-TW.ipa
+          test -s DPort-6.9.5-Build68-TW.sha256
+          ls -lh DPort-6.9.5-Build68-TW.ipa DPort-6.9.5-Build68-TW.sha256
 
       - name: Upload DPort 6.9.5 Build 68
         uses: actions/upload-artifact@v7
         with:
           name: DPort-6.9.5-Build68-TW
           path: |
-            src-build/DPort-6.9.5-Build67-TW.ipa
-            src-build/DPort-6.9.5-Build67-TW.sha256
+            src-build/DPort-6.9.5-Build68-TW.ipa
+            src-build/DPort-6.9.5-Build68-TW.sha256
           if-no-files-found: error
 
 
