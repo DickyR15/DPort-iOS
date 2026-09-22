@@ -1071,9 +1071,22 @@ if _root_path.exists():
                         }
                         session.teleport(to: pin, pairing: pairing)
 '''
-    if old_pin not in root:
-        raise SystemExit("DPort Build 66: teleport action not found")
-    root = root.replace(old_pin, new_pin, 1)
+    if old_pin in root:
+        root = root.replace(old_pin, new_pin, 1)
+    else:
+        # Upstream may change indentation or label formatting. Fall back to a
+        # structural insertion immediately before the first teleport pin guard.
+        needle = 'guard let pin = session.pin else {'
+        if needle in root and '請先連線 LocalDevVPN，再傳送定位。' not in root:
+            root = root.replace(
+                needle,
+                'guard LocalDevVPN.isConnected else {\n'
+                '                            session.lastError = "請先連線 LocalDevVPN，再傳送定位。"\n'
+                '                            return\n'
+                '                        }\n'
+                '                        ' + needle,
+                1
+            )
 
     _root_path.write_text(root, encoding="utf-8")
 
