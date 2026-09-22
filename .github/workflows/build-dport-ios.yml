@@ -52,8 +52,8 @@ jobs:
           source "$HOME/.cargo/env" 2>/dev/null || true
           rustup target add aarch64-apple-ios
           cargo build --release --target aarch64-apple-ios --manifest-path ffi/Cargo.toml --no-default-features --features full,aws-lc
-          test -s ffi/target/aarch64-apple-ios/release/libidevice_ffi.a
-          cp ffi/target/aarch64-apple-ios/release/libidevice_ffi.a ../src-build/Vendor/idevice/libidevice_ffi.a
+          test -s target/aarch64-apple-ios/release/libidevice_ffi.a
+          cp target/aarch64-apple-ios/release/libidevice_ffi.a ../src-build/Vendor/idevice/libidevice_ffi.a
           cp ffi/idevice.h ../src-build/Vendor/idevice/idevice.h
           echo "Using idevice-ffi rev 7bd551c with multihost RPPairing transport"
 
