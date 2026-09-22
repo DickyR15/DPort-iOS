@@ -12,7 +12,7 @@ if not ROOT_VIEW.exists():
 
 s = ROOT_VIEW.read_text(encoding="utf-8")
 
-# DPort Build 73: immediate LocalDevVPN prompt when the app opens without the tunnel.
+# DPort Build 74: immediate LocalDevVPN prompt when the app opens without the tunnel.
 root_alert = '''        .alert("DPort", isPresented: Binding(
             get: { session.lastError != nil },
             set: { if !$0 { session.lastError = nil } }
@@ -41,6 +41,23 @@ if root_alert not in s:
 # disable the joystick; the pad simply waits for the next simulated coordinate.
 if SPOOF_SESSION.exists():
     ss = SPOOF_SESSION.read_text(encoding="utf-8")
+    # Build 73/74: joystick works without a map pin and gives an immediate VPN prompt.
+    if "func startJoystick(pairing: PairingStore)" in ss:
+        old_j = """    func startJoystick(pairing: PairingStore) {
+        guard pairing.hasPairingFile else {"""
+        new_j = """    func startJoystick(pairing: PairingStore) {
+        guard LocalDevVPN.isConnected else {
+            lastError = "請先連線 LocalDevVPN，才能使用搖桿。"
+            return
+        }
+        guard pairing.hasPairingFile else {"""
+        ss = ss.replace(old_j, new_j, 1)
+        ss = ss.replace(
+            "        let start = simulated ?? pin ?? locationKeeper.lastKnownCoordinate",
+            "        locationKeeper.start()\n        let start = simulated ?? pin ?? locationKeeper.lastKnownCoordinate",
+            1
+        )
+
     stop_start = ss.find("    func stop(pairing: PairingStore) {")
     stop_end = ss.find("\n    }\n\n    /// Best-known real device coordinate", stop_start)
     if stop_start >= 0 and stop_end >= 0:
@@ -97,11 +114,7 @@ new_block = r'''struct BottomControlsView: View {
                         .frame(width: compact ? 132 : 144, height: compact ? 132 : 144)
                     } else {
                         Button {
-                            if !LocalDevVPN.isConnected {
-                                session.lastError = "請先連線 LocalDevVPN，才能使用搖桿。"
-                            } else {
-                                session.startJoystick(pairing: pairing)
-                            }
+                            session.startJoystick(pairing: pairing)
                         } label: {
                             ZStack {
                                 Circle()
@@ -162,7 +175,7 @@ new_block = r'''struct BottomControlsView: View {
                         // 不需要先停止再重新定位。
                         Button {
                             guard LocalDevVPN.isConnected else {
-                                session.lastError = "請先連線 LocalDevVPN，才能使用定位。"
+                                session.lastError = "請先連線 LocalDevVPN，再使用定位或搖桿。"
                                 return
                             }
                             guard let pin = session.pin else {
@@ -216,7 +229,7 @@ new_block = r'''struct BottomControlsView: View {
         }
         .frame(height: 268)
         .onAppear {
-            if pairing.hasPairingFile && !session.joystickActive {
+            if pairing.hasPairingFile && !session.joystickActive && LocalDevVPN.isConnected {
                 session.startJoystick(pairing: pairing)
             }
         }
@@ -292,7 +305,7 @@ ROOT_VIEW.write_text(s, encoding="utf-8")
 
 # Build 73 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "73"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "74"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
 print("DPort Build 73 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
