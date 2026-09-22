@@ -134,43 +134,43 @@ rw("Locus/Features/Settings/SettingsView.swift", patch_settings)
 
 # Tunnel IP: explicit save button with validation and visible feedback.
 def patch_tunnel_settings(s):
-    # Remove the original/manual Tunnel section completely. LocalDevVPN is the
-    # only VPN UI exposed by DPort; there is no user-editable tunnel IP.
-    manual_tunnel = re.compile(
-        r'(?ms)^                Section \\{\\n'
-        r'                    TextField\\("Device tunnel IP", text: \\$tunnelIP\\).*?'
-        r'^                \\} footer: \\{\\n'
-        r'                    Text\\("Connect LocalDevVPN before teleporting\\. Default tunnel IP is 10\\.7\\.0\\.1\\. Start a spoof on Wi‑Fi first; it can keep working on cellular afterward\\."\\)\\n'
-        r'^                \\}\\n'
-    )
-    # The regex above uses escaped source literals; also handle the exact
-    # upstream block by locating its stable labels if needed.
-    s, _ = manual_tunnel.subn("", s, count=1)
+    # Replace the upstream manual Tunnel section with the DPort LocalDevVPN
+    # section. This intentionally uses exact source text, not regex, so the
+    # build script is stable on Python 3.14.
+    old_tunnel = '''                Section {
+                    TextField("Device tunnel IP", text: $tunnelIP)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onSubmit {
+                            TunnelConfig.setTargetIP(tunnelIP)
+                        }
+                    LabeledContent("Status") {
+                        Text(LocalDevVPN.isConnected ? "Connected" : "Not connected")
+                            .foregroundStyle(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)
+                    }
+                    Button("Save tunnel IP") {
+                        TunnelConfig.setTargetIP(tunnelIP)
+                    }
+                    Button {
+                        if localDevVPNInstalled {
+                            LocalDevVPN.openInstalled()
+                        } else {
+                            LocalDevVPN.openAppStore()
+                        }
+                    } label: {
+                        Label(
+                            localDevVPNInstalled ? "Open LocalDevVPN" : "Get LocalDevVPN (App Store)",
+                            systemImage: localDevVPNInstalled ? "lock.shield.fill" : "arrow.down.app.fill"
+                        )
+                    }
+                } header: {
+                    Text("Tunnel")
+                } footer: {
+                    Text("Connect LocalDevVPN before teleporting. Default tunnel IP is 10.7.0.1. Start a spoof on Wi‑Fi first; it can keep working on cellular afterward.")
+                }
 
-    # Stable fallback: remove any remaining Tunnel/進階通道設定 Section
-    # from its header through the next Section("Privacy"/"隱私權").
-    legacy = re.compile(
-        r'(?ms)^                Section \\{.*?^                \\} footer: \\{\\n'
-        r'                    Text\\("Connect LocalDevVPN before teleporting\\..*?^                \\}\\n\\n'
-    )
-    s, _ = legacy.subn("", s, count=1)
-
-    advanced = re.compile(
-        r'(?ms)^                Section\\("進階通道設定"\\) \\{.*?^                \\}\\n\\n'
-    )
-    s, _ = advanced.subn("", s, count=1)
-
-    # Remove old tunnel state and setup remnants.
-    for line in (
-        '    @State private var tunnelIP = TunnelConfig.targetIP\\n',
-        '    @State private var vpnConfigured = LocalDevVPN.isConfigured\\n',
-        '    @State private var tunnelSaveMessage = ""\\n',
-        '    @State private var showTunnelSaveMessage = false\\n',
-    ):
-        s = s.replace(line, "")
-
-    # Replace any previously injected VPN section with the final compact UI.
-    replacement = r'''                Section("VPN 連線") {
+'''
+    vpn_section = '''                Section("VPN 連線") {
                     LabeledContent("LocalDevVPN") {
                         Text(
                             LocalDevVPN.isConnected
@@ -210,31 +210,39 @@ def patch_tunnel_settings(s):
                 }
 
 '''
-    vpn_re = re.compile(r'(?ms)^                Section\("VPN 連線"\) \{.*?^                \}\n\n')
-    if vpn_re.search(s):
-        s = vpn_re.sub(replacement, s, count=1)
+    if old_tunnel not in s:
+        # Allow the patch to be safely re-run if the VPN section is already
+        # present from a previous generated source.
+        if 'Section("VPN 連線")' not in s:
+            raise SystemExit("Upstream Tunnel section anchor not found")
     else:
-        privacy = s.find('                Section("隱私權")')
-        if privacy < 0:
-            privacy = s.find('                Section("Privacy")')
-        if privacy < 0:
-            raise SystemExit("Privacy section anchor not found")
-        s = s[:privacy] + replacement + s[privacy:]
+        s=s.replace(old_tunnel, vpn_section, 1)
 
-    # Refresh the display whenever the Settings view becomes active.
-    if '.onReceive(NotificationCenter.default.publisher(for: .dportVPNStatusChanged))' not in s:
-        s=s.replace(
-            '''            .onAppear {
+    # Remove all manual tunnel state because DPort no longer exposes a tunnel IP.
+    s=s.replace('    @State private var tunnelIP = TunnelConfig.targetIP\\n', '')
+    s=s.replace('    @State private var vpnConfigured = LocalDevVPN.isConfigured\\n', '')
+    s=s.replace('    @State private var tunnelSaveMessage = ""\\n', '')
+    s=s.replace('    @State private var showTunnelSaveMessage = false\\n', '')
+
+    # Done must not write a tunnel IP anymore.
+    s=s.replace('''                    Button("Done") {
+                        TunnelConfig.setTargetIP(tunnelIP)
+                        dismiss()
+                    }''',
+                '''                    Button("Done") {
+                        dismiss()
+                    }''')
+
+    # Refresh installed/connected status whenever the app becomes active.
+    old_appear='''            .onAppear {
                 localDevVPNInstalled = LocalDevVPN.isInstalled
-            }''',
-            '''            .onAppear {
+                tunnelIP = TunnelConfig.targetIP
+            }'''
+    new_appear='''            .onAppear {
                 localDevVPNInstalled = LocalDevVPN.isInstalled
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .dportVPNStatusChanged)) { _ in
-                localDevVPNInstalled = LocalDevVPN.isInstalled
-            }''',
-            1
-        )
+            }'''
+    s=s.replace(old_appear,new_appear,1)
+
     return s
 
 rw("Locus/Features/Settings/SettingsView.swift", patch_tunnel_settings)
