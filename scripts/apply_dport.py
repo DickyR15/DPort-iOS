@@ -1020,74 +1020,297 @@ if _settings_path.exists():
 
 
 
-# 11) Build 66 UX hardening:
-# - Put the live joystick on the LEFT side for easier thumb reach.
-# - Reject joystick/teleport immediately when LocalDevVPN is disconnected.
-# - Keep the working Build 65 LocationEngine / RPPairing path untouched.
+# 11) Build 68 UI rebuild:
+# - Keep Build 65 location / RPPairing / developer-tunnel logic untouched.
+# - Rebuild the home control tray to match the requested reference layout:
+#   large joystick on the LEFT, travel modes + labeled controls on the RIGHT.
+# - Show all four top map controls with Traditional Chinese labels.
+# - Keep VPN preflight for joystick/teleport, but do not alter LocationEngine.
 _root_path = ROOT / "Locus/Features/Map/RootView.swift"
+_map_path = ROOT / "Locus/Features/Map/MapHomeView.swift"
+
 if _root_path.exists():
     root = _root_path.read_text(encoding="utf-8")
 
-    # Move the live joystick to the leading/left side.
-    root = root.replace(
-        '.frame(maxWidth: .infinity, alignment: .trailing)',
-        '.frame(maxWidth: .infinity, alignment: .leading)',
-        1,
-    )
+    # Replace the complete BottomControlsView so the layout is deterministic
+    # instead of accumulating small alignment patches from earlier builds.
+    start = root.find("struct BottomControlsView: View {")
+    end = root.find("\nstruct IconButton: View {", start)
+    if start < 0 or end < 0:
+        raise SystemExit("DPort Build 68: BottomControlsView boundaries not found")
 
-    # Upstream Locus keeps the joystick action in the bottom controls.
-    # Do not depend on a whitespace-sensitive full block; locate the actual
-    # startJoystick call and inject the VPN preflight around it.
-    old_start = '''                    } else {
-                        session.startJoystick(pairing: pairing)
+    bottom_view = r'''struct BottomControlsView: View {
+    @EnvironmentObject private var session: SpoofSession
+    @EnvironmentObject private var pairing: PairingStore
+    @Binding var showSettings: Bool
+    @Binding var showPlaces: Bool
+
+    private let trayShape = RoundedRectangle(cornerRadius: 28, style: .continuous)
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            // LEFT: large thumb joystick, matching the reference layout.
+            VStack(spacing: 8) {
+                JoystickPad { vector in
+                    session.updateJoystick(vector: vector)
+                }
+                .frame(width: 148, height: 148)
+                .opacity(session.joystickActive ? 1.0 : 0.42)
+                .allowsHitTesting(session.joystickActive)
+
+                Text("搖桿模式")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            .frame(width: 170)
+
+            Divider()
+                .frame(height: 178)
+                .opacity(0.45)
+
+            // RIGHT: 4 travel modes + 4 common tools.
+            VStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    modeButton(.walk)
+                    modeButton(.run)
+                    modeButton(.cycle)
+                    modeButton(.drive)
+                }
+
+                HStack(spacing: 8) {
+                    labeledTrayIcon("gearshape.fill", "設定") {
+                        showSettings = true
                     }
-'''
-    new_start = '''                    } else if !LocalDevVPN.isConnected {
-                        session.lastError = "請先連線 LocalDevVPN，再使用搖桿。"
+                    labeledTrayIcon("star.fill", "我的最愛") {
+                        showPlaces = true
+                    }
+                    labeledTrayIcon("mappin.and.ellipse", "標記") {
+                        if let coord = session.simulated ?? session.realCoordinate {
+                            session.pin = coord
+                        } else {
+                            session.lastError = "目前沒有可用的定位。"
+                        }
+                    }
+                    labeledTrayIcon("ellipsis", "更多") {
+                        showPlaces = true
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Button {
+                        if session.joystickActive {
+                            session.stopJoystick()
+                        } else if !LocalDevVPN.isConnected {
+                            session.lastError = "請先連線 LocalDevVPN，再使用搖桿。"
+                        } else {
+                            session.startJoystick(pairing: pairing)
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "dot.circle.and.hand.point.up.left.fill")
+                            Text(session.joystickActive ? "搖桿停止" : "搖桿開啟")
+                                .lineLimit(1)
+                        }
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(
+                            Capsule().fill(
+                                session.joystickActive
+                                    ? LocusTheme.accentSecondary
+                                    : LocusTheme.accent
+                            )
+                        )
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    if session.isSpoofing {
+                        Button {
+                            session.stop(pairing: pairing)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "stop.fill")
+                                Text("停止")
+                            }
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Capsule().fill(LocusTheme.danger))
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     } else {
-                        session.startJoystick(pairing: pairing)
+                        Button {
+                            guard LocalDevVPN.isConnected else {
+                                session.lastError = "請先連線 LocalDevVPN，再傳送定位。"
+                                return
+                            }
+                            guard let pin = session.pin else {
+                                session.lastError = "請先在地圖放置圖釘。"
+                                return
+                            }
+                            session.teleport(to: pin, pairing: pairing)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "location.fill")
+                                Text("傳送定位")
+                            }
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Capsule().fill(LocusTheme.accentSecondary))
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(session.isBusy)
                     }
-'''
-    if old_start not in root:
-        raise SystemExit("DPort Build 66: joystick start action not found")
-    root = root.replace(old_start, new_start, 1)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .locusGlass(.regular, in: trayShape)
+        .contentShape(trayShape)
+    }
 
-    # Teleport action: inject the VPN check immediately before the pin check.
-    old_pin = '''                    Button {
-                        guard let pin = session.pin else {
-                            session.lastError = "Tap the map to drop a pin first."
-                            return
-                        }
-                        session.teleport(to: pin, pairing: pairing)
-'''
-    new_pin = '''                    Button {
-                        guard LocalDevVPN.isConnected else {
-                            session.lastError = "請先連線 LocalDevVPN，再傳送定位。"
-                            return
-                        }
-                        guard let pin = session.pin else {
-                            session.lastError = "Tap the map to drop a pin first."
-                            return
-                        }
-                        session.teleport(to: pin, pairing: pairing)
-'''
-    if old_pin in root:
-        root = root.replace(old_pin, new_pin, 1)
-    else:
-        # Upstream may change indentation or label formatting. Fall back to a
-        # structural insertion immediately before the first teleport pin guard.
-        needle = 'guard let pin = session.pin else {'
-        if needle in root and '請先連線 LocalDevVPN，再傳送定位。' not in root:
-            root = root.replace(
-                needle,
-                'guard LocalDevVPN.isConnected else {\n'
-                '                            session.lastError = "請先連線 LocalDevVPN，再傳送定位。"\n'
-                '                            return\n'
-                '                        }\n'
-                '                        ' + needle,
-                1
-            )
+    @ViewBuilder
+    private func modeButton(_ mode: TravelMode) -> some View {
+        let selected = session.travelMode == mode
+        Button {
+            session.travelMode = mode
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: mode.icon)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(selected ? .black : .primary)
+                    .frame(width: 48, height: 40)
+                    .background(
+                        Circle().fill(
+                            selected ? LocusTheme.accent : Color.primary.opacity(0.08)
+                        )
+                    )
 
+                Text(travelModeName(mode))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func travelModeName(_ mode: TravelMode) -> String {
+        switch mode {
+        case .walk: return "步行"
+        case .run: return "跑步"
+        case .cycle: return "腳踏車"
+        case .drive: return "開車"
+        }
+    }
+
+    private func labeledTrayIcon(
+        _ systemName: String,
+        _ title: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: systemName)
+                    .font(.body.weight(.semibold))
+                    .frame(width: 48, height: 40)
+                    .background(Circle().fill(Color.primary.opacity(0.08)))
+
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+'''
+    root = root[:start] + bottom_view + root[end:]
     _root_path.write_text(root, encoding="utf-8")
 
-print(f"DPort branding/localization applied: {len(TRANSLATIONS)} strings + final UI hardening.")
+if _map_path.exists():
+    home = _map_path.read_text(encoding="utf-8")
+
+    # Replace the top chrome button row with four labeled controls so the
+    # labels are always visible on iPhone, rather than appearing only as icons.
+    start = home.find("    private var mapChromeButtons: some View {")
+    end = home.find("\n    private var locateButton", start)
+    if start < 0 or end < 0:
+        raise SystemExit("DPort Build 68: mapChromeButtons boundaries not found")
+
+    chrome = r'''    private var mapChromeButtons: some View {
+        HStack(spacing: 2) {
+            labeledChromeButton("square.3.layers.3d", "地圖圖層") {
+                session.mapStyleIndex = (session.mapStyleIndex + 1) % 3
+            }
+
+            labeledChromeButton("point.topleft.down.to.point.bottomright.curvepath", "路線規劃") {
+                showRouteSheet = true
+            }
+
+            labeledChromeButton(
+                drawMode ? "pencil.tip.crop.circle.badge.minus" : "pencil.tip.crop.circle",
+                "附近地點"
+            ) {
+                drawMode.toggle()
+                if !drawMode { drawnPath.removeAll() }
+            }
+
+            labeledChromeButton("star.circle", "我的最愛") {
+                if let pin = session.pin {
+                    let name = session.suggestedFavoriteName(for: pin, fallback: pinPlaceName)
+                    session.addFavorite(name: name, coordinate: pin)
+                } else {
+                    showPlaces = true
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .locusGlass(.clear, in: Capsule())
+        .contentShape(Capsule())
+    }
+
+    private func labeledChromeButton(
+        _ systemName: String,
+        _ title: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: systemName)
+                    .font(.body.weight(.semibold))
+                    .frame(height: 28)
+
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+            }
+            .frame(width: 74, height: 54)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+    }
+'''
+    home = home[:start] + chrome + home[end:]
+    _map_path.write_text(home, encoding="utf-8")
+
+print("DPort Build 68 UI applied: reference-matched left joystick tray + labeled home controls.")
