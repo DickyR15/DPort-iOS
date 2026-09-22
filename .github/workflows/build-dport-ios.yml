@@ -39,6 +39,20 @@ jobs:
           python3 ../scripts/apply_dport_build39.py
           python3 ../scripts/fix_localdevvpn_build52.py
 
+      - name: Set DPort version to Build 64
+        working-directory: src-build
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('project.yml')
+          s=p.read_text()
+          s=re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "64"', s, count=1)
+          p.write_text(s)
+          PY
+          grep 'CURRENT_PROJECT_VERSION' project.yml
+
       - name: Install DPort app icon
         run: |
           set -euo pipefail
