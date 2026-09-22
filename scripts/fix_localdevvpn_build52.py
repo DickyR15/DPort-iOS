@@ -348,46 +348,61 @@ print("DPort Build 57: reliable LocalDevVPN three-state UI.")
 
 
 
-# Build 58 — harden the iOS 27 developer tunnel / RSD startup.
-# LocalDevVPN can report connected before its point-to-point route is ready.
-# Retry RPPairing creation briefly instead of failing on the first attempt.
+
+# Build 59 — fix the actual developer-tunnel path and expose the FFI reason.
+# Build 58's retry patch was too dependent on an exact upstream source block;
+# this version uses regex-based replacement against the current Locus source.
 location = ROOT / "Locus" / "Engine" / "LocationEngine.swift"
-if location.exists():
-    ls = location.read_text(encoding="utf-8")
+if not location.exists():
+    raise SystemExit("LocationEngine.swift not found")
+ls = location.read_text(encoding="utf-8")
 
-    # Add a retry-specific error description while preserving the existing
-    # public error enum and UI.
-    old_enum = '        case .tunnelCreate: return "Could not open the developer tunnel. Is LocalDevVPN connected on Wi-Fi?"'
-    new_enum = '        case .tunnelCreate: return "無法建立開發者通道。LocalDevVPN 已連線，但 iOS 開發者通道尚未就緒。請稍候再試。"'
-    ls = ls.replace(old_enum, new_enum, 1)
+# Preserve the public Int32 result API, but retain the actual FFI error text
+# so the UI no longer collapses every failure into "VPN is not connected".
+ls = ls.replace(
+    '    private static var locationSimulation: OpaquePointer?\n',
+    '    private static var locationSimulation: OpaquePointer?\n    private static var lastTunnelErrorMessage: String?\n    private static var lastRemoteServerErrorMessage: String?\n',
+    1
+)
+ls = ls.replace(
+    '        case .tunnelCreate: return "Could not open the developer tunnel. Is LocalDevVPN connected on Wi‑Fi?"',
+    '        case .tunnelCreate: return "無法建立開發者通道：\\(LocationEngine.lastTunnelErrorMessage ?? "未知錯誤")"',
+    1
+)
+ls = ls.replace(
+    '        case .remoteServer: return "Connected to the tunnel but RemoteXPC handshake failed."',
+    '        case .remoteServer: return "開發者通道已建立，但 RSD 交握失敗：\\(LocationEngine.lastRemoteServerErrorMessage ?? "未知錯誤")"',
+    1
+)
 
-    old_provider = '''        let providerError = withUnsafePointer(to: &address) { pointer in
-            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                tunnel_create_rppairing(
-                    $0,
-                    socklen_t(MemoryLayout<sockaddr_in>.stride),
-                    "LocusLocation",
-                    pairingHandle,
-                    nil,
-                    nil,
-                    &adapter,
-                    &handshake
-                )
-            }
-        }
-        if !tunnelSucceeded {
-            cleanup()
-            return tunnelCreate
-        }'''
-    new_provider = '''        // iOS 27 + LocalDevVPN: the VPN route can become reachable a short
-        // moment after the VPN UI reports "connected". Retry the complete
-        // RPPairing tunnel creation instead of treating the first failure as
-        // a permanent LocalDevVPN failure.
-        var providerError: UnsafeMutablePointer<IdeviceFfiError>?
+# Replace the one-shot RPPairing call with a robust retry block and preserve
+# the native FFI diagnostic string.
+import re
+provider_pat = re.compile(
+    r'''        let providerError = withUnsafePointer\(to: &address\) \{ pointer in\n'''
+    r'''            pointer\.withMemoryRebound\(to: sockaddr\.self, capacity: 1\) \{\n'''
+    r'''                tunnel_create_rppairing\(\n'''
+    r'''                    \$0,\n'''
+    r'''                    socklen_t\(MemoryLayout<sockaddr_in>\.stride\),\n'''
+    r'''                    "LocusLocation",\n'''
+    r'''                    pairingHandle,\n'''
+    r'''                    nil,\n'''
+    r'''                    nil,\n'''
+    r'''                    &adapter,\n'''
+    r'''                    &handshake\n'''
+    r'''                \)\n'''
+    r'''            \}\n'''
+    r'''        \}\n'''
+    r'''        if let providerError \{\n'''
+    r'''            idevice_error_free\(providerError\)\n'''
+    r'''            cleanup\(\)\n'''
+    r'''            return tunnelCreate\n'''
+    r'''        \}\n''')
+provider_repl = '''        lastTunnelErrorMessage = nil
         var tunnelSucceeded = false
         for attempt in 0..<6 {
             cleanup()
-            providerError = withUnsafePointer(to: &address) { pointer in
+            let providerError = withUnsafePointer(to: &address) { pointer in
                 pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                     tunnel_create_rppairing(
                         $0,
@@ -401,64 +416,104 @@ if location.exists():
                     )
                 }
             }
-            if providerError == nil {
+            if let providerError {
+                if let message = providerError.pointee.message {
+                    lastTunnelErrorMessage = String(cString: message)
+                } else {
+                    lastTunnelErrorMessage = "FFI error code \(providerError.pointee.code)"
+                }
+                idevice_error_free(providerError)
+                if attempt < 5 {
+                    usleep(500_000)
+                    continue
+                }
+            } else {
                 tunnelSucceeded = true
                 break
             }
-            idevice_error_free(providerError)
-            providerError = nil
-            if attempt < 5 {
-                usleep(400_000)
-            }
         }
-        if let providerError {
-            idevice_error_free(providerError)
+        if !tunnelSucceeded {
             cleanup()
             return tunnelCreate
-        }'''
-    if old_provider in ls:
-        ls = ls.replace(old_provider, new_provider, 1)
-    else:
-        print("WARNING: LocationEngine tunnel block not found; retry patch skipped.")
+        }
+'''
+if not provider_pat.search(ls):
+    raise SystemExit("Build59: exact tunnel_create_rppairing block not found")
+ls = provider_pat.sub(provider_repl, ls, count=1)
 
-    # If RSD comes up a little later than the tunnel, retry that handshake too.
-    old_rsd = '''        if let remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer) {
-            idevice_error_free(remoteServerError)
-            cleanup()
-            return remoteServerCode
-        }'''
-    new_rsd = '''        var remoteServerError: UnsafeMutablePointer<IdeviceFfiError>?
+# Replace the one-shot RSD handshake with retries and diagnostics.
+rsd_pat = re.compile(
+    r'''        if let remoteServerError = remote_server_connect_rsd\(adapter, handshake, &remoteServer\) \{\n'''
+    r'''            idevice_error_free\(remoteServerError\)\n'''
+    r'''            cleanup\(\)\n'''
+    r'''            return remoteServerCode\n'''
+    r'''        \}\n''')
+rsd_repl = '''        lastRemoteServerErrorMessage = nil
         var rsdSucceeded = false
         for attempt in 0..<4 {
-            remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer)
-            if remoteServerError == nil {
+            if let remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer) {
+                if let message = remoteServerError.pointee.message {
+                    lastRemoteServerErrorMessage = String(cString: message)
+                } else {
+                    lastRemoteServerErrorMessage = "FFI error code \(remoteServerError.pointee.code)"
+                }
+                idevice_error_free(remoteServerError)
+                remoteServer = nil
+                if attempt < 3 {
+                    usleep(500_000)
+                    continue
+                }
+            } else {
                 rsdSucceeded = true
                 break
-            }
-            idevice_error_free(remoteServerError)
-            remoteServerError = nil
-            remoteServer = nil
-            if attempt < 3 {
-                usleep(500_000)
             }
         }
         if !rsdSucceeded {
             cleanup()
             return remoteServerCode
-        }'''
-    if old_rsd in ls:
-        ls = ls.replace(old_rsd, new_rsd, 1)
-    else:
-        print("WARNING: LocationEngine RSD block not found; retry patch skipped.")
+        }
+'''
+if not rsd_pat.search(ls):
+    raise SystemExit("Build59: exact RSD block not found")
+ls = rsd_pat.sub(rsd_repl, ls, count=1)
 
-    location.write_text(ls, encoding="utf-8")
+# Add a tiny route sanity check by probing the configured RSD endpoint before
+# the FFI handshake. This is intentionally diagnostic only; it does not alter
+# the VPN or send application data.
+marker='''        guard let pairingHandle else { return pairingRead }
+        defer { rp_pairing_file_free(pairingHandle) }
+'''
+probe='''        guard let pairingHandle else { return pairingRead }
+        defer { rp_pairing_file_free(pairingHandle) }
 
-# Build number
+        // If the VPN route is absent, report it explicitly rather than
+        // misleadingly blaming the pairing file.
+        let probeFD = socket(AF_INET, SOCK_STREAM, 0)
+        if probeFD >= 0 {
+            var tv = timeval(tv_sec: 2, tv_usec: 0)
+            setsockopt(probeFD, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+            setsockopt(probeFD, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+            let probeResult = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    connect(probeFD, $0, socklen_t(MemoryLayout<sockaddr_in>.stride))
+                }
+            }
+            close(probeFD)
+            if probeResult != 0 {
+                lastTunnelErrorMessage = "無法連線 \(deviceIP):49152（errno \(errno)）。請檢查 LocalDevVPN 的 Device IP／通道路由。"
+            }
+        }
+'''
+if marker not in ls:
+    raise SystemExit("Build59: pairing marker not found")
+ls=ls.replace(marker,probe,1)
+
+location.write_text(ls, encoding="utf-8")
+
 project = ROOT / "project.yml"
 if project.exists():
     ps = project.read_text(encoding="utf-8")
-    import re
-    ps = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "58"', ps)
+    ps = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "59"', ps)
     project.write_text(ps, encoding="utf-8")
 
-print("DPort Build 58: retry LocalDevVPN RPPairing tunnel and RSD startup.")
+print("DPort Build 59: robust RPPairing/RSD retries + real FFI diagnostics + route probe.")
