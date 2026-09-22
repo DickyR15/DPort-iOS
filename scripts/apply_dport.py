@@ -850,4 +850,144 @@ for rel in [
         if leaked:
             raise SystemExit(f"English UI strings remain in {rel}: {leaked}")
 
+
+
+# 10) Settings UI hardening: remove the upstream manual Tunnel section.
+# This is deliberately performed here (after localization) so later build
+# scripts cannot leave the old "通道 / 10.7.0.1 / 儲存通道 IP" UI behind.
+def _hardening_settings_vpn(path: Path):
+    content = path.read_text(encoding="utf-8")
+
+    # Remove a previously injected DPort VPN section first, so this pass is
+    # idempotent and never creates duplicate VPN sections.
+    vpn_start = content.find('                Section("VPN 連線") {')
+    if vpn_start >= 0:
+        vpn_end = content.find('\n                Section', vpn_start + 10)
+        if vpn_end < 0:
+            vpn_end = content.find('\n            }\n            .navigationTitle', vpn_start)
+        if vpn_end > vpn_start:
+            content = content[:vpn_start] + content[vpn_end + 1:]
+
+    # The upstream Tunnel section is stable from the TextField through the
+    # Privacy section. Support both the localized and original labels.
+    tunnel_labels = [
+        '                Section {\\n                    TextField("裝置通道 IP"',
+        '                Section {\\n                    TextField("Device tunnel IP"',
+    ]
+    privacy_labels = [
+        '                Section("隱私權")',
+        '                Section("Privacy")',
+    ]
+
+    t0 = -1
+    for label in tunnel_labels:
+        t0 = content.find(label)
+        if t0 >= 0:
+            break
+
+    p0 = -1
+    if t0 >= 0:
+        for label in privacy_labels:
+            p0 = content.find(label, t0)
+            if p0 >= 0:
+                break
+
+    vpn_section = '''                Section("VPN 連線") {
+                    LabeledContent("LocalDevVPN") {
+                        Text(
+                            LocalDevVPN.isConnected
+                                ? "已連線"
+                                : (LocalDevVPN.isInstalled ? "已安裝" : "未安裝")
+                        )
+                        .foregroundStyle(
+                            LocalDevVPN.isConnected
+                                ? LocusTheme.statusGood
+                                : (LocalDevVPN.isInstalled ? .secondary : LocusTheme.statusWarn)
+                        )
+                    }
+
+                    Button {
+                        if LocalDevVPN.isInstalled {
+                            LocalDevVPN.openInstalled()
+                        } else {
+                            LocalDevVPN.openAppStore()
+                        }
+                    } label: {
+                        Label(
+                            LocalDevVPN.isConnected
+                                ? "開啟 LocalDevVPN"
+                                : (LocalDevVPN.isInstalled
+                                    ? "連線 LocalDevVPN"
+                                    : "安裝 LocalDevVPN"),
+                            systemImage: LocalDevVPN.isInstalled
+                                ? "lock.shield.fill"
+                                : "arrow.down.app.fill"
+                        )
+                    }
+
+                    if LocalDevVPN.isConnected {
+                        Label("VPN 通道正常", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(LocusTheme.statusGood)
+                    }
+                }
+
+'''
+
+    if t0 >= 0 and p0 > t0:
+        content = content[:t0] + vpn_section + content[p0:]
+    elif 'Section("VPN 連線")' not in content:
+        # Upstream layout changed: insert immediately before Privacy.
+        p0 = -1
+        for label in privacy_labels:
+            p0 = content.find(label)
+            if p0 >= 0:
+                break
+        if p0 >= 0:
+            content = content[:p0] + vpn_section + content[p0:]
+        else:
+            raise SystemExit("DPort: unable to locate Settings insertion point")
+
+    # Remove obsolete state/side effects if present.
+    content = content.replace('    @State private var tunnelIP = TunnelConfig.targetIP\n', '')
+    content = content.replace('    @State private var vpnConfigured = LocalDevVPN.isConfigured\n', '')
+    content = content.replace('    @State private var tunnelSaveMessage = ""\n', '')
+    content = content.replace('    @State private var showTunnelSaveMessage = false\n', '')
+    content = content.replace(
+        '''                    Button("Done") {
+                        TunnelConfig.setTargetIP(tunnelIP)
+                        dismiss()
+                    }''',
+        '''                    Button("Done") {
+                        dismiss()
+                    }''',
+        1,
+    )
+    content = content.replace(
+        '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+                tunnelIP = TunnelConfig.targetIP
+            }''',
+        '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+            }''',
+        1,
+    )
+
+    # The Settings UI must never contain these old labels after this pass.
+    for leaked in (
+        '"裝置通道 IP"', '"Device tunnel IP"',
+        '"儲存通道 IP"', '"Save tunnel IP"',
+        '"通道"', '"Tunnel"',
+        '10.7.0.1',
+    ):
+        if leaked in content:
+            raise SystemExit(f"DPort: legacy tunnel UI remains: {leaked}")
+
+    path.write_text(content, encoding="utf-8")
+
+_settings_path = ROOT / "Locus/Features/Settings/SettingsView.swift"
+if _settings_path.exists():
+    _hardening_settings_vpn(_settings_path)
+
+
 print(f"DPort branding/localization applied: {len(TRANSLATIONS)} strings + final UI hardening.")
