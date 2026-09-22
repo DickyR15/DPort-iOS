@@ -28,6 +28,14 @@ root_alert = '''        .alert("DPort", isPresented: Binding(
         } message: {
             Text(session.lastError ?? "")
         }
+        .overlay(alignment: .top) {
+            if let toastMessage {
+                Text(toastMessage).font(.caption.weight(.bold)).foregroundStyle(.primary)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule()).shadow(radius: 6)
+                    .transition(.move(edge: .top).combined(with: .opacity)).padding(.top, 34)
+            }
+        }
         .onAppear {
             if !LocalDevVPN.isConnected {
                 session.lastError = "請先連線 LocalDevVPN，才能使用定位與搖桿。"
@@ -132,6 +140,8 @@ new_block = r'''struct BottomControlsView: View {
     private let trayShape = RoundedRectangle(cornerRadius: 28, style: .continuous)
     @State private var modeNotice: String?
     @State private var modeNoticeTask: Task<Void, Never>?
+    @State private var toastMessage: String?
+    @State private var toastTask: Task<Void, Never>?
 
     private var locateTitle: String {
         session.isSpoofing ? "更新定位" : "定位"
@@ -261,6 +271,7 @@ new_block = r'''struct BottomControlsView: View {
                                 return
                             }
                             session.teleport(to: pin, pairing: pairing)
+                            showToast(session.isSpoofing ? "✓ 已更新定位" : "✓ 定位完成")
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: locateIcon)
@@ -283,6 +294,7 @@ new_block = r'''struct BottomControlsView: View {
                                 return
                             }
                             session.stop(pairing: pairing)
+                            showToast("✓ 已停止定位")
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: "stop.fill")
@@ -338,10 +350,20 @@ new_block = r'''struct BottomControlsView: View {
                 session.startJoystick(pairing: pairing)
             }
         }
-        .onDisappear { modeNoticeTask?.cancel() }
+        .onDisappear { modeNoticeTask?.cancel(); toastTask?.cancel() }
     }
 
     private func showModeNotice(_ title: String) {
+    private func showToast(_ message: String) {
+        toastTask?.cancel()
+        withAnimation(.easeOut(duration: 0.18)) { toastMessage = message }
+        toastTask = Task {
+            try? await Task.sleep(for: .milliseconds(1200))
+            guard !Task.isCancelled else { return }
+            await MainActor.run { withAnimation(.easeIn(duration: 0.18)) { toastMessage = nil } }
+        }
+    }
+
         modeNoticeTask?.cancel()
         let speed: String
         switch session.travelMode {
@@ -351,7 +373,7 @@ new_block = r'''struct BottomControlsView: View {
         case .drive: speed = "120 km/h"
         }
         withAnimation(.easeOut(duration: 0.2)) {
-            modeNotice = "(title) · 最高 (speed)"
+            modeNotice = "\(title) · 最高 \(speed)"
         }
         modeNoticeTask = Task {
             try? await Task.sleep(for: .milliseconds(1100))
@@ -367,6 +389,7 @@ new_block = r'''struct BottomControlsView: View {
 
         return Button {
             session.travelMode = mode
+            showModeNotice(title)
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: mode.icon)
