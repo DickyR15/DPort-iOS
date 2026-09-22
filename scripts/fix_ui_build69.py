@@ -28,14 +28,6 @@ root_alert = '''        .alert("DPort", isPresented: Binding(
         } message: {
             Text(session.lastError ?? "")
         }
-        .overlay(alignment: .top) {
-            if let toastMessage {
-                Text(toastMessage).font(.caption.weight(.bold)).foregroundStyle(.primary)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule()).shadow(radius: 6)
-                    .transition(.move(edge: .top).combined(with: .opacity)).padding(.top, 34)
-            }
-        }
         .onAppear {
             if !LocalDevVPN.isConnected {
                 session.lastError = "請先連線 LocalDevVPN，才能使用定位與搖桿。"
@@ -350,21 +342,23 @@ new_block = r'''struct BottomControlsView: View {
                 session.startJoystick(pairing: pairing)
             }
         }
+        .overlay(alignment: .top) {
+            if let toastMessage {
+                Text(toastMessage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .shadow(radius: 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .padding(.top, 34)
+            }
+        }
         .onDisappear { modeNoticeTask?.cancel(); toastTask?.cancel() }
     }
 
     private func showModeNotice(_ title: String) {
-    }
-
-    private func showToast(_ message: String) {
-        toastTask?.cancel()
-        withAnimation(.easeOut(duration: 0.18)) { toastMessage = message }
-        toastTask = Task {
-            try? await Task.sleep(for: .milliseconds(1200))
-            guard !Task.isCancelled else { return }
-            await MainActor.run { withAnimation(.easeIn(duration: 0.18)) { toastMessage = nil } }
-        }
-
         modeNoticeTask?.cancel()
         let speed: String
         switch session.travelMode {
@@ -381,6 +375,18 @@ new_block = r'''struct BottomControlsView: View {
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 withAnimation(.easeIn(duration: 0.2)) { modeNotice = nil }
+            }
+        }
+    }
+
+    private func showToast(_ message: String) {
+        toastTask?.cancel()
+        withAnimation(.easeOut(duration: 0.18)) { toastMessage = message }
+        toastTask = Task {
+            try? await Task.sleep(for: .milliseconds(1200))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(.easeIn(duration: 0.18)) { toastMessage = nil }
             }
         }
     }
