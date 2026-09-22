@@ -4,7 +4,7 @@ import plistlib
 
 ROOT = Path.cwd()
 
-# DPort Build 54 — LocalDevVPN fix.
+# DPort Build 55 — LocalDevVPN fix.
 # Do NOT use canOpenURL() as the gate for the action. Apple documents that
 # open(_:options:completionHandler:) itself reports whether an installed app
 # could handle the URL, and recommends handling open failures rather than
@@ -198,7 +198,7 @@ project = ROOT / "project.yml"
 if project.exists():
     s = project.read_text(encoding="utf-8")
     import re
-    s = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "54"', s)
+    s = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "55"', s)
     project.write_text(s, encoding="utf-8")
 
 print("DPort Build 54 LocalDevVPN fix applied.")
