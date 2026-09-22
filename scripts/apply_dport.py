@@ -1018,4 +1018,71 @@ if _settings_path.exists():
     _hardening_settings_vpn(_settings_path)
 
 
+
+
+# 11) Build 66 UX hardening:
+# - Put the live joystick on the LEFT side for easier thumb reach.
+# - Reject joystick/teleport immediately when LocalDevVPN is disconnected.
+#   This avoids waiting for the developer tunnel timeout (~6 seconds).
+# - Keep the working Build 65 LocationEngine / RPPairing path untouched.
+_root_path = ROOT / "Locus/Features/Map/RootView.swift"
+if _root_path.exists():
+    root = _root_path.read_text(encoding="utf-8")
+
+    # The joystick itself moves from the trailing/right side to the
+    # leading/left side. This is the only layout change to the pad.
+    root = root.replace(
+        '.frame(maxWidth: .infinity, alignment: .trailing)',
+        '.frame(maxWidth: .infinity, alignment: .leading)',
+        1,
+    )
+
+    # Instant LocalDevVPN preflight for the joystick button.
+    old_joy_action = '''                Button {
+                    if session.joystickActive {
+                        session.stopJoystick()
+                    } else {
+                        session.startJoystick(pairing: pairing)
+                    }
+                } label: {'''
+    new_joy_action = '''                Button {
+                    if session.joystickActive {
+                        session.stopJoystick()
+                    } else if !LocalDevVPN.isConnected {
+                        session.lastError = "請先連線 LocalDevVPN，再使用搖桿。"
+                    } else {
+                        session.startJoystick(pairing: pairing)
+                    }
+                } label: {'''
+    if old_joy_action not in root:
+        raise SystemExit("DPort Build 66: joystick action block not found")
+    root = root.replace(old_joy_action, new_joy_action, 1)
+
+    # Instant LocalDevVPN preflight for Teleport as well. This keeps the
+    # error behavior consistent and prevents the same tunnel timeout there.
+    old_teleport_action = '''                    Button {
+                        guard let pin = session.pin else {
+                            session.lastError = "Tap the map to drop a pin first."
+                            return
+                        }
+                        session.teleport(to: pin, pairing: pairing)
+                    } label: {'''
+    new_teleport_action = '''                    Button {
+                        guard LocalDevVPN.isConnected else {
+                            session.lastError = "請先連線 LocalDevVPN，再傳送定位。"
+                            return
+                        }
+                        guard let pin = session.pin else {
+                            session.lastError = "Tap the map to drop a pin first."
+                            return
+                        }
+                        session.teleport(to: pin, pairing: pairing)
+                    } label: {'''
+    if old_teleport_action not in root:
+        raise SystemExit("DPort Build 66: teleport action block not found")
+    root = root.replace(old_teleport_action, new_teleport_action, 1)
+
+    _root_path.write_text(root, encoding="utf-8")
+
+
 print(f"DPort branding/localization applied: {len(TRANSLATIONS)} strings + final UI hardening.")
