@@ -4,7 +4,7 @@ import plistlib
 
 ROOT = Path.cwd()
 
-# DPort Build 55 — LocalDevVPN fix.
+# DPort Build 56 — LocalDevVPN fix.
 # Do NOT use canOpenURL() as the gate for the action. Apple documents that
 # open(_:options:completionHandler:) itself reports whether an installed app
 # could handle the URL, and recommends handling open failures rather than
@@ -85,6 +85,19 @@ if old_auto in s:
     s = s.replace(old_auto, new_auto, 1)
 
 vpn.write_text(s, encoding="utf-8")
+# RootView still uses the old Button(action:) function reference from the
+# upstream DPort patch. The new openOrInstall has a completion parameter, so
+# give SwiftUI a zero-argument closure.
+root = ROOT / "Locus" / "Features" / "Map" / "RootView.swift"
+if root.exists():
+    rs = root.read_text(encoding="utf-8")
+    rs = rs.replace(
+        "Button(action: LocalDevVPN.openOrInstall) {",
+        "Button(action: { LocalDevVPN.openOrInstall() }) {"
+    )
+    root.write_text(rs, encoding="utf-8")
+
+
 
 # Settings: never route to the App Store merely because canOpenURL() returned
 # false. The actual open result decides whether LocalDevVPN exists.
@@ -198,7 +211,7 @@ project = ROOT / "project.yml"
 if project.exists():
     s = project.read_text(encoding="utf-8")
     import re
-    s = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "55"', s)
+    s = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "56"', s)
     project.write_text(s, encoding="utf-8")
 
-print("DPort Build 54 LocalDevVPN fix applied.")
+print("DPort Build 56 LocalDevVPN fix applied.")
