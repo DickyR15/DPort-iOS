@@ -1273,9 +1273,17 @@ if _map_path.exists():
     old_sim_marker = """                    if let sim = session.simulated {
                         Annotation("Spoof", coordinate: sim) {
                             ZStack {
-                                Circle().fill(LocusTheme.accent.opacity(0.25)).frame(width: 44, height: 44)
-                                Circle().fill(LocusTheme.accent).frame(width: 14, height: 14)
-                                    .overlay(Circle().stroke(.white, lineWidth: 2))
+                                Circle()
+                                    .fill(LocusTheme.accent.opacity(0.08))
+                                    .frame(width: 70, height: 70)
+                                    .overlay(Circle().stroke(LocusTheme.accent.opacity(0.28), lineWidth: 1))
+                                Circle()
+                                    .fill(LocusTheme.accent.opacity(0.24))
+                                    .frame(width: 52, height: 52)
+                                Circle()
+                                    .fill(LocusTheme.accent)
+                                    .frame(width: 18, height: 18)
+                                    .overlay(Circle().stroke(.white, lineWidth: 3))
                             }
                         }
                     }"""
