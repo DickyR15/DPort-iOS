@@ -134,49 +134,42 @@ rw("Locus/Features/Settings/SettingsView.swift", patch_settings)
 
 # Tunnel IP: explicit save button with validation and visible feedback.
 def patch_tunnel_settings(s):
-    # Replace the upstream Tunnel section entirely. Users should never have
-    # to enter or save a tunnel IP; LocalDevVPN owns that configuration.
-    tunnel_re = re.compile(
-        r'''(?ms)^                Section \\{\\n
-                    TextField\\("Device tunnel IP", text: \\$tunnelIP\\).*?
-                \\} header: \\{\\n
-                    Text\\("Tunnel"\\)\\n
-                \\} footer: \\{\\n
-                    Text\\("Connect LocalDevVPN before teleporting\\. Default tunnel IP is 10\\.7\\.0\\.1\\. Start a spoof on Wi‑Fi first; it can keep working on cellular afterward\\."\\)\\n
-                \\}\\n'''
+    # Remove the original/manual Tunnel section completely. LocalDevVPN is the
+    # only VPN UI exposed by DPort; there is no user-editable tunnel IP.
+    manual_tunnel = re.compile(
+        r'(?ms)^                Section \\{\\n'
+        r'                    TextField\\("Device tunnel IP", text: \\$tunnelIP\\).*?'
+        r'^                \\} footer: \\{\\n'
+        r'                    Text\\("Connect LocalDevVPN before teleporting\\. Default tunnel IP is 10\\.7\\.0\\.1\\. Start a spoof on Wi‑Fi first; it can keep working on cellular afterward\\."\\)\\n'
+        r'^                \\}\\n'
     )
-    s, removed = tunnel_re.subn("", s, count=1)
+    # The regex above uses escaped source literals; also handle the exact
+    # upstream block by locating its stable labels if needed.
+    s, _ = manual_tunnel.subn("", s, count=1)
 
-    # Also remove an earlier DPort tunnel variant if present.
-    old_tunnel_re = re.compile(
-        r'''(?ms)^                Section \\{\\n
-                    TextField\\("(?:裝置通道 IP|通道 IP)", text: \\$tunnelIP\\).*?
-                \\} header: \\{\\n
-                    Text\\("(?:通道|定位通道)"\\).*?
-                \\}\\n'''
+    # Stable fallback: remove any remaining Tunnel/進階通道設定 Section
+    # from its header through the next Section("Privacy"/"隱私權").
+    legacy = re.compile(
+        r'(?ms)^                Section \\{.*?^                \\} footer: \\{\\n'
+        r'                    Text\\("Connect LocalDevVPN before teleporting\\..*?^                \\}\\n\\n'
     )
-    s = old_tunnel_re.sub("", s, count=1)
+    s, _ = legacy.subn("", s, count=1)
 
-    # Remove obsolete tunnel state declarations.
+    advanced = re.compile(
+        r'(?ms)^                Section\\("進階通道設定"\\) \\{.*?^                \\}\\n\\n'
+    )
+    s, _ = advanced.subn("", s, count=1)
+
+    # Remove old tunnel state and setup remnants.
     for line in (
+        '    @State private var tunnelIP = TunnelConfig.targetIP\\n',
         '    @State private var vpnConfigured = LocalDevVPN.isConfigured\\n',
         '    @State private var tunnelSaveMessage = ""\\n',
         '    @State private var showTunnelSaveMessage = false\\n',
     ):
         s = s.replace(line, "")
 
-    # Remove the old tunnel IP initialization but keep the VPN install state.
-    s = s.replace(
-        """            .onAppear {
-                localDevVPNInstalled = LocalDevVPN.isInstalled
-                tunnelIP = TunnelConfig.targetIP
-            }""",
-        """            .onAppear {
-                localDevVPNInstalled = LocalDevVPN.isInstalled
-            }""",
-        1
-    )
-
+    # Replace any previously injected VPN section with the final compact UI.
     replacement = r'''                Section("VPN 連線") {
                     LabeledContent("LocalDevVPN") {
                         Text(
@@ -217,8 +210,6 @@ def patch_tunnel_settings(s):
                 }
 
 '''
-    # If the VPN section from the previous patch exists, replace it; otherwise
-    # insert it immediately before Privacy.
     vpn_re = re.compile(r'(?ms)^                Section\("VPN 連線"\) \{.*?^                \}\n\n')
     if vpn_re.search(s):
         s = vpn_re.sub(replacement, s, count=1)
@@ -230,6 +221,20 @@ def patch_tunnel_settings(s):
             raise SystemExit("Privacy section anchor not found")
         s = s[:privacy] + replacement + s[privacy:]
 
+    # Refresh the display whenever the Settings view becomes active.
+    if '.onReceive(NotificationCenter.default.publisher(for: .dportVPNStatusChanged))' not in s:
+        s=s.replace(
+            '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+            }''',
+            '''            .onAppear {
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .dportVPNStatusChanged)) { _ in
+                localDevVPNInstalled = LocalDevVPN.isInstalled
+            }''',
+            1
+        )
     return s
 
 rw("Locus/Features/Settings/SettingsView.swift", patch_tunnel_settings)
@@ -518,7 +523,10 @@ def patch_vpn_integration(s):
     }
 '''
     replacement = '''    static var isInstalled: Bool {
-        UIApplication.shared.canOpenURL(detectURL) || isConnected
+        UIApplication.shared.canOpenURL(enableURL)
+            || UIApplication.shared.canOpenURL(detectURL)
+            || isConnected
+            || UserDefaults.standard.bool(forKey: setupKey)
     }
 
     static var isConfigured: Bool {
