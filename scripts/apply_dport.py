@@ -1091,3 +1091,135 @@ def _patch_location_engine_fresh_connection():
     p.write_text(c, encoding="utf-8")
 
 _patch_location_engine_fresh_connection()
+
+
+
+# Build 60 developer-tunnel hardening. This runs after cloning the current
+# upstream Locus, so patch the exact current LocationEngine implementation.
+def patch_build60_location_engine():
+    p = ROOT / "Locus/Engine/LocationEngine.swift"
+    if not p.exists():
+        raise SystemExit("Build60: LocationEngine.swift not found")
+    c = p.read_text(encoding="utf-8")
+
+    c = c.replace(
+        'case .tunnelCreate: return "Could not open the developer tunnel. Is LocalDevVPN connected on Wi‑Fi?"',
+        'case .tunnelCreate: return "無法建立開發者通道：\\(LocationEngine.lastTunnelError ?? "未知錯誤")"',
+        1
+    )
+    c = c.replace(
+        'case .remoteServer: return "Connected to the tunnel but RemoteXPC handshake failed."',
+        'case .remoteServer: return "RSD 開發者通道交握失敗：\\(LocationEngine.lastRSDTunnelError ?? "未知錯誤")"',
+        1
+    )
+    c = c.replace(
+        '    private static var locationSimulation: OpaquePointer?\\n',
+        '    private static var locationSimulation: OpaquePointer?\\n    private static var lastTunnelError: String?\\n    private static var lastRSDTunnelError: String?\\n',
+        1
+    )
+
+    old = '''        let providerError = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                tunnel_create_rppairing(
+                    $0,
+                    socklen_t(MemoryLayout<sockaddr_in>.stride),
+                    "LocusLocation",
+                    pairingHandle,
+                    nil,
+                    nil,
+                    &adapter,
+                    &handshake
+                )
+            }
+        }
+        if let providerError {
+            idevice_error_free(providerError)
+            cleanup()
+            return tunnelCreate
+        }
+
+        if let remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer) {
+            idevice_error_free(remoteServerError)
+            cleanup()
+            return remoteServerCode
+        }'''
+    new = '''        // Do not probe 10.7.0.1:49152 separately. That endpoint is consumed
+        // by the RPPairing implementation itself. Establish the Apple tunnel
+        // directly and retry only the actual RPPairing operation.
+        lastTunnelError = nil
+        var tunnelOK = false
+        for attempt in 0..<5 {
+            cleanup()
+            let providerError = withUnsafePointer(to: &address) { pointer in
+                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    tunnel_create_rppairing(
+                        $0,
+                        socklen_t(MemoryLayout<sockaddr_in>.stride),
+                        "LocusLocation",
+                        pairingHandle,
+                        nil,
+                        nil,
+                        &adapter,
+                        &handshake
+                    )
+                }
+            }
+            if let providerError {
+                if let message = providerError.pointee.message {
+                    lastTunnelError = String(cString: message)
+                } else {
+                    lastTunnelError = "FFI error code \\(providerError.pointee.code)"
+                }
+                idevice_error_free(providerError)
+                if attempt < 4 { usleep(500_000) }
+            } else {
+                tunnelOK = true
+                break
+            }
+        }
+        if !tunnelOK {
+            cleanup()
+            return tunnelCreate
+        }
+
+        lastRSDTunnelError = nil
+        var rsdOK = false
+        for attempt in 0..<4 {
+            if let remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer) {
+                if let message = remoteServerError.pointee.message {
+                    lastRSDTunnelError = String(cString: message)
+                } else {
+                    lastRSDTunnelError = "FFI error code \\(remoteServerError.pointee.code)"
+                }
+                idevice_error_free(remoteServerError)
+                remoteServer = nil
+                if attempt < 3 { usleep(500_000) }
+            } else {
+                rsdOK = true
+                break
+            }
+        }
+        if !rsdOK {
+            cleanup()
+            return remoteServerCode
+        }'''
+    if old not in c:
+        raise SystemExit("Build60: current LocationEngine tunnel block changed; refusing unsafe patch")
+    c = c.replace(old, new, 1)
+
+    # Always discard stale handles before a fresh user action.
+    old2 = '''    private static func setLocked(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String) {
+'''
+    # no-op: signature is Int32 in current upstream; cleanup is already called
+    # when an active simulation fails.
+
+    p.write_text(c, encoding="utf-8")
+
+    import re
+    project = ROOT / "project.yml"
+    if project.exists():
+        ps = project.read_text(encoding="utf-8")
+        ps = re.sub(r'CURRENT_PROJECT_VERSION:\\s*"\\d+"', 'CURRENT_PROJECT_VERSION: "60"', ps)
+        project.write_text(ps, encoding="utf-8")
+
+patch_build60_location_engine()
