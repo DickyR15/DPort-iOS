@@ -1150,6 +1150,7 @@ if _root_path.exists():
                     if session.isSpoofing {
                         Button {
                             session.stop(pairing: pairing)
+                            session.pin = nil
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "stop.fill")
@@ -1296,14 +1297,20 @@ private struct DPortSimulatedMarker: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(LocusTheme.accent.opacity(isActive ? 0.22 : 0.14))
-                .frame(width: pulse ? 56 : 48, height: pulse ? 56 : 48)
+                .fill(LocusTheme.accent.opacity(isActive ? 0.20 : 0.12))
+                .frame(width: pulse ? 64 : 56, height: pulse ? 64 : 56)
+
+            Circle()
+                .fill(Color.black.opacity(0.22))
+                .frame(width: 50, height: 50)
 
             Image("DPortMapPin")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 34, height: 34)
-                .shadow(color: .black.opacity(0.28), radius: 3, y: 2)
+                .frame(width: 42, height: 42)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 2))
+                .shadow(color: .black.opacity(0.30), radius: 3, y: 2)
         }
         .scaleEffect(pulse ? 1.04 : 1.0)
         .animation(
