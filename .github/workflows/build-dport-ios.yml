@@ -39,6 +39,21 @@ jobs:
           python3 ../scripts/apply_dport_build39.py
           python3 ../scripts/fix_localdevvpn_build52.py
 
+      - name: Build current idevice-ffi with multihost RPPairing support
+        run: |
+          set -euo pipefail
+          rm -rf sideinstaller-ffi
+          git clone --depth 1 https://github.com/FrizzleM/SideInstaller.git sideinstaller-ffi
+          cd sideinstaller-ffi
+          export DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer
+          export IPHONEOS_DEPLOYMENT_TARGET=18.0
+          source \"$HOME/.cargo/env\" 2>/dev/null || true
+          cargo build --release --target aarch64-apple-ios --manifest-path rust-core/Cargo.toml
+          test -s rust-core/target/aarch64-apple-ios/release/libsideinstaller_ffi.a
+          cp rust-core/target/aarch64-apple-ios/release/libsideinstaller_ffi.a ../src-build/Vendor/idevice/libidevice_ffi.a
+          cp rust-core/include/idevice.h ../src-build/Vendor/idevice/idevice.h
+          echo \"Using current idevice-ffi multihost transport\"
+
       - name: Install DPort app icon
         run: |
           set -euo pipefail
@@ -56,7 +71,21 @@ jobs:
           set -euo pipefail
           xcodebuild             -project DPort.xcodeproj             -scheme DPort             -configuration Release             -destination 'generic/platform=iOS'             -derivedDataPath build/DerivedData             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             DEVELOPMENT_TEAM=             build
 
-      - name: Package DPort 6.9.5 Build 61 IPA
+      - name: Set DPort version to Build 62
+        working-directory: src-build
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('project.yml')
+          s=p.read_text()
+          import re
+          s=re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "62"', s, count=1)
+          p.write_text(s)
+          PY
+          grep 'CURRENT_PROJECT_VERSION' project.yml
+
+      - name: Package DPort 6.9.5 Build 62 IPA
         working-directory: src-build
         run: |
           set -euo pipefail
@@ -74,7 +103,7 @@ jobs:
           test -s DPort-6.9.5-Build61-TW.sha256
           ls -lh DPort-6.9.5-Build61-TW.ipa DPort-6.9.5-Build61-TW.zip DPort-6.9.5-Build61-TW.sha256
 
-      - name: Upload DPort 6.9.5 Build 61
+      - name: Upload DPort 6.9.5 Build 62
         uses: actions/upload-artifact@v7
         with:
           name: DPort-6.9.5-Build61-TW
