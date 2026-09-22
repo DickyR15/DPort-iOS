@@ -12,6 +12,31 @@ if not ROOT_VIEW.exists():
 
 s = ROOT_VIEW.read_text(encoding="utf-8")
 
+# DPort Build 73: immediate LocalDevVPN prompt when the app opens without the tunnel.
+root_alert = '''        .alert("DPort", isPresented: Binding(
+            get: { session.lastError != nil },
+            set: { if !$0 { session.lastError = nil } }
+        )) {
+            if session.lastError?.contains("LocalDevVPN") == true {
+                Button("連線 LocalDevVPN") {
+                    session.lastError = nil
+                    LocalDevVPN.openOrInstall()
+                }
+            }
+            Button("稍後再說", role: .cancel) { session.lastError = nil }
+        } message: {
+            Text(session.lastError ?? "")
+        }
+        .onAppear {
+            if !LocalDevVPN.isConnected {
+                session.lastError = "請先連線 LocalDevVPN，才能使用定位與搖桿。"
+            }
+        }'''
+root_sheet = '        .sheet(isPresented: $showSettings) {'
+if root_alert not in s:
+    s = s.replace(root_sheet, root_alert + "\n" + root_sheet, 1)
+
+
 # Keep the joystick available by default. Stopping GPS simulation should not
 # disable the joystick; the pad simply waits for the next simulated coordinate.
 if SPOOF_SESSION.exists():
@@ -25,10 +50,10 @@ if SPOOF_SESSION.exists():
         SPOOF_SESSION.write_text(ss, encoding="utf-8")
 
 # Normalize upstream MapHomeView initializer across Locus revisions.
-# Build 72 keeps showCoordinates binding and separates Locate / Stop Locate.
+# Build 73 keeps showCoordinates binding and separates Locate / Stop Locate.
 s = re.sub(r'MapHomeView\\(\\s*showCoordinates:\\s*\\$showCoordinates\\s*\\)', 'MapHomeView()', s)
 
-# Build 72 UI: match the requested DPort layout and separate locate/stop actions.
+# Build 73 UI: match the requested DPort layout and separate locate/stop actions.
 # - Joystick is permanently on the LEFT side of the bottom tray.
 # - Travel modes are a labeled 4-column row on the RIGHT.
 # - Settings / Favorites / Pin / More are a labeled 4-column row.
@@ -71,19 +96,29 @@ new_block = r'''struct BottomControlsView: View {
                         }
                         .frame(width: compact ? 132 : 144, height: compact ? 132 : 144)
                     } else {
-                        ZStack {
-                            Circle()
-                                .fill(Color.primary.opacity(0.06))
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.primary.opacity(0.14), lineWidth: 1)
-                                )
+                        Button {
+                            if !LocalDevVPN.isConnected {
+                                session.lastError = "請先連線 LocalDevVPN，才能使用搖桿。"
+                            } else {
+                                session.startJoystick(pairing: pairing)
+                            }
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.primary.opacity(0.06))
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.primary.opacity(0.14), lineWidth: 1)
+                                    )
 
-                            Image(systemName: "dot.circle.and.hand.point.up.left.fill")
-                                .font(.system(size: 34, weight: .medium))
-                                .foregroundStyle(.secondary)
+                                Image(systemName: "dot.circle.and.hand.point.up.left.fill")
+                                    .font(.system(size: 34, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(width: compact ? 132 : 144, height: compact ? 132 : 144)
+                            .contentShape(Circle())
                         }
-                        .frame(width: compact ? 132 : 144, height: compact ? 132 : 144)
+                        .buttonStyle(.plain)
                     }
 
                     Text("搖桿模式")
@@ -126,8 +161,12 @@ new_block = r'''struct BottomControlsView: View {
                         // 定位與停止定位分開：定位中也能直接套用新的座標，
                         // 不需要先停止再重新定位。
                         Button {
+                            guard LocalDevVPN.isConnected else {
+                                session.lastError = "請先連線 LocalDevVPN，才能使用定位。"
+                                return
+                            }
                             guard let pin = session.pin else {
-                                session.lastError = "請先點選地圖放置圖釘。"
+                                session.lastError = "請先點選地圖放置圖釘，或直接使用搖桿。"
                                 return
                             }
                             session.teleport(to: pin, pairing: pairing)
@@ -251,9 +290,9 @@ s = s.replace(
 
 ROOT_VIEW.write_text(s, encoding="utf-8")
 
-# Build 72 is set before xcodegen/build.
+# Build 73 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "72"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "73"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
-print("DPort Build 72 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
+print("DPort Build 73 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
