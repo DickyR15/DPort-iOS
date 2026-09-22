@@ -84,7 +84,7 @@ jobs:
           shasum -a 256 DPort-6.9.5-Build64-TW.ipa > DPort-6.9.5-Build64-TW.sha256
           test -s DPort-6.9.5-Build64-TW.ipa
           test -s DPort-6.9.5-Build64-TW.sha256
-          ls -lh DPort-6.9.5-Build64-TW.ipa DPort-6.9.5-Build64-TW.zip DPort-6.9.5-Build64-TW.sha256
+          ls -lh DPort-6.9.5-Build64-TW.ipa DPort-6.9.5-Build64-TW.sha256
 
       - name: Upload DPort 6.9.5 Build 64
         uses: actions/upload-artifact@v7
