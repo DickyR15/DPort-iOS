@@ -39,23 +39,26 @@ jobs:
           python3 ../scripts/apply_dport_build39.py
           python3 ../scripts/fix_localdevvpn_build52.py
 
-      - name: Build current idevice-ffi with multihost RPPairing support
+      - name: Build SideInstaller FFI with multihost RPPairing support
         run: |
           set -euo pipefail
-          rm -rf idevice-ffi-build
-          git clone --depth 1 https://github.com/jkcoxson/idevice.git idevice-ffi-build
-          cd idevice-ffi-build
-          git fetch --depth 1 origin 7bd551c16c6dd2e058740d85a2d9399a51a776e9
-          git checkout --detach 7bd551c16c6dd2e058740d85a2d9399a51a776e9
+          rm -rf sideinstaller-ffi
+          git clone --depth 1 https://github.com/FrizzleM/SideInstaller.git sideinstaller-ffi
+          cd sideinstaller-ffi
+          git fetch --depth 1 origin 0bcca076549ddfd108f31b5a7099688ad6a3944e
+          git checkout --detach 0bcca076549ddfd108f31b5a7099688ad6a3944e
           export DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer
           export IPHONEOS_DEPLOYMENT_TARGET=18.0
           source "$HOME/.cargo/env" 2>/dev/null || true
           rustup target add aarch64-apple-ios
-          cargo build --release --target aarch64-apple-ios --manifest-path ffi/Cargo.toml --no-default-features --features full,aws-lc
-          test -s target/aarch64-apple-ios/release/libidevice_ffi.a
-          cp target/aarch64-apple-ios/release/libidevice_ffi.a ../src-build/Vendor/idevice/libidevice_ffi.a
-          cp ffi/idevice.h ../src-build/Vendor/idevice/idevice.h
-          echo "Using idevice-ffi rev 7bd551c with multihost RPPairing transport"
+          cargo build --release --target aarch64-apple-ios --manifest-path rust-core/Cargo.toml
+          test -s rust-core/target/aarch64-apple-ios/release/libsideinstaller_ffi.a
+          test -s rust-core/include/idevice.h
+          cp rust-core/target/aarch64-apple-ios/release/libsideinstaller_ffi.a ../src-build/Vendor/idevice/libidevice_ffi.a
+          cp rust-core/include/idevice.h ../src-build/Vendor/idevice/idevice.h
+          echo "Using SideInstaller FFI rev 0bcca076 with multihost RPPairing transport"
+          grep -n "tunnel_create_rppairing_multihost" ../src-build/Vendor/idevice/idevice.h
+          grep -n "pairable_host_accept" ../src-build/Vendor/idevice/idevice.h | head -1
 
       - name: Install DPort app icon
         run: |
