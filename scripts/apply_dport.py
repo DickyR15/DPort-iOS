@@ -520,6 +520,26 @@ if icon_svg.exists():
   "info" : { "author" : "Dicky", "version" : 1 }
 }
 ''', encoding="utf-8")
+
+    # Reuse the same DPort artwork as the live simulated-GPS map marker.
+    # Keeping this as a separate image set avoids depending on the app-icon
+    # asset name at runtime.
+    map_pin = assets / "DPortMapPin.imageset"
+    map_pin.mkdir(parents=True, exist_ok=True)
+    for size, scale in [(40, 2), (60, 3)]:
+        subprocess.run([
+            "rsvg-convert", "-w", str(size), "-h", str(size), str(icon_svg),
+            "-o", str(map_pin / f"DPortMapPin-{scale}x.png")
+        ], check=True)
+    (map_pin / "Contents.json").write_text(r'''{
+  "images" : [
+    { "filename" : "DPortMapPin-2x.png", "idiom" : "universal", "scale" : "2x" },
+    { "filename" : "DPortMapPin-3x.png", "idiom" : "universal", "scale" : "3x" }
+  ],
+  "info" : { "author" : "Dicky", "version" : 1 }
+}
+''', encoding="utf-8")
+
 else:
     raise SystemExit("Missing branding/DPort-AppIcon.svg")
 
