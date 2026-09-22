@@ -497,8 +497,9 @@ rw("Locus/Resources/Info.plist", lambda s:
 def patch_vpn_integration(s):
     import re
 
-    # LocalDevVPN uses a public deep-link.  Keep App installation state
-    # completely separate from tunnel connectivity.
+    # LocalDevVPN exposes localdevvpn://enable and localdevvpn://disable.
+    # Use the enable URL as the single reliable probe/open target. A bare
+    # localdevvpn:// URL is not a command handled by LocalDevVPN.
     s = s.replace(
         'static let enableURL = URL(string: "localdevvpn://enable?scheme=locus")!',
         'static let enableURL = URL(string: "localdevvpn://enable?scheme=dport")!'
@@ -557,14 +558,14 @@ def patch_vpn_integration(s):
     }'''
         s = s.replace(marker, marker + configured, 1)
 
-    # Record installation when DPort successfully opens LocalDevVPN.
+    # Always use the supported enable deep-link to bring LocalDevVPN
+    # to the foreground. Do not use the bare localdevvpn:// URL.
     s = re.sub(
         r'    static func openInstalled\(\) \{.*?\n    \}',
         '''    static func openInstalled() {
-        // The caller has already verified that LocalDevVPN is installed.
-        // Do not write an installation cache here; removal must be detectable.
-        let url = isConnected ? detectURL : enableURL
-        UIApplication.shared.open(url)
+        // Use LocalDevVPN's supported command URL in both states. The
+        // callback returns to DPort through dport:// after one second.
+        UIApplication.shared.open(enableURL)
     }''',
         s,
         count=1,
