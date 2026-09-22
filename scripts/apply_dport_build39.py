@@ -518,10 +518,18 @@ def patch_vpn_integration(s):
         )
 
     installed = '''    static var isInstalled: Bool {
-        if UIApplication.shared.canOpenURL(enableURL) || UIApplication.shared.canOpenURL(detectURL) {
+        // A live LocalDevVPN tunnel proves the app is installed even when
+        // iOS temporarily returns false from canOpenURL().
+        if isConnected {
             UserDefaults.standard.set(true, forKey: installationKey)
             return true
         }
+
+        if UIApplication.shared.canOpenURL(detectURL) || UIApplication.shared.canOpenURL(enableURL) {
+            UserDefaults.standard.set(true, forKey: installationKey)
+            return true
+        }
+
         return UserDefaults.standard.bool(forKey: installationKey)
     }'''
     s, n = re.subn(
@@ -561,7 +569,17 @@ def patch_vpn_integration(s):
         r'    static func openInstalled\(\) \{.*?\n    \}',
         '''    static func openInstalled() {
         UserDefaults.standard.set(true, forKey: installationKey)
-        UIApplication.shared.open(enableURL)
+
+        // When already connected, only open the LocalDevVPN app UI.
+        // When disconnected, use its documented enable deep-link.
+        let url = isConnected ? detectURL : enableURL
+        UIApplication.shared.open(url) { success in
+            if !success {
+                // Do not silently send an installed app to App Store because
+                // of a transient URL-routing failure.
+                UserDefaults.standard.set(true, forKey: installationKey)
+            }
+        }
     }''',
         s,
         count=1,
