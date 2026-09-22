@@ -1094,22 +1094,27 @@ _patch_location_engine_fresh_connection()
 
 
 
-# Build 60 developer-tunnel hardening. This runs after cloning the current
-# upstream Locus, so patch the exact current LocationEngine implementation.
+
+
+
+# Build 60 — replace the complete current LocationEngine setLocked path.
+# Keeping the whole function replacement avoids brittle matching against
+# upstream formatting changes.
 def patch_build60_location_engine():
     p = ROOT / "Locus/Engine/LocationEngine.swift"
     if not p.exists():
         raise SystemExit("Build60: LocationEngine.swift not found")
     c = p.read_text(encoding="utf-8")
+    import re
 
     c = c.replace(
         'case .tunnelCreate: return "Could not open the developer tunnel. Is LocalDevVPN connected on Wi‑Fi?"',
-        'case .tunnelCreate: return "無法建立開發者通道：\\(LocationEngine.lastTunnelError ?? "未知錯誤")"',
+        'case .tunnelCreate: return "無法建立開發者通道：\\\\(LocationEngine.lastTunnelError ?? "未知錯誤")"',
         1
     )
     c = c.replace(
         'case .remoteServer: return "Connected to the tunnel but RemoteXPC handshake failed."',
-        'case .remoteServer: return "RSD 開發者通道交握失敗：\\(LocationEngine.lastRSDTunnelError ?? "未知錯誤")"',
+        'case .remoteServer: return "RSD 開發者通道交握失敗：\\\\(LocationEngine.lastRSDTunnelError ?? "未知錯誤")"',
         1
     )
     c = c.replace(
@@ -1118,34 +1123,33 @@ def patch_build60_location_engine():
         1
     )
 
-    old = '''        let providerError = withUnsafePointer(to: &address) { pointer in
-            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                tunnel_create_rppairing(
-                    $0,
-                    socklen_t(MemoryLayout<sockaddr_in>.stride),
-                    "LocusLocation",
-                    pairingHandle,
-                    nil,
-                    nil,
-                    &adapter,
-                    &handshake
-                )
+    new_func = r'''    private static func setLocked(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String) -> Int32 {
+        if let locationSimulation {
+            if let err = location_simulation_set(locationSimulation, latitude, longitude) {
+                idevice_error_free(err)
+                cleanup()
+            } else {
+                return ok
             }
         }
-        if let providerError {
-            idevice_error_free(providerError)
-            cleanup()
-            return tunnelCreate
-        }
 
-        if let remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer) {
-            idevice_error_free(remoteServerError)
-            cleanup()
-            return remoteServerCode
-        }'''
-    new = '''        // Do not probe 10.7.0.1:49152 separately. That endpoint is consumed
-        // by the RPPairing implementation itself. Establish the Apple tunnel
-        // directly and retry only the actual RPPairing operation.
+        var address = sockaddr_in()
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = in_port_t(49152).bigEndian
+        let inetResult = deviceIP.withCString { inet_pton(AF_INET, $0, &address.sin_addr) }
+        guard inetResult == 1 else { return invalidIP }
+
+        var pairingHandle: OpaquePointer?
+        if let pairingError = pairingPath.withCString({ rp_pairing_file_read($0, &pairingHandle) }) {
+            idevice_error_free(pairingError)
+            return pairingRead
+        }
+        guard let pairingHandle else { return pairingRead }
+        defer { rp_pairing_file_free(pairingHandle) }
+
+        // Use the actual Apple RPPairing tunnel operation. Do not probe the
+        // endpoint separately; LocalDevVPN's point-to-point route is consumed
+        // by tunnel_create_rppairing itself.
         lastTunnelError = nil
         var tunnelOK = false
         for attempt in 0..<5 {
@@ -1168,7 +1172,7 @@ def patch_build60_location_engine():
                 if let message = providerError.pointee.message {
                     lastTunnelError = String(cString: message)
                 } else {
-                    lastTunnelError = "FFI error code \\(providerError.pointee.code)"
+                    lastTunnelError = "FFI error code \(providerError.pointee.code)"
                 }
                 idevice_error_free(providerError)
                 if attempt < 4 { usleep(500_000) }
@@ -1189,7 +1193,7 @@ def patch_build60_location_engine():
                 if let message = remoteServerError.pointee.message {
                     lastRSDTunnelError = String(cString: message)
                 } else {
-                    lastRSDTunnelError = "FFI error code \\(remoteServerError.pointee.code)"
+                    lastRSDTunnelError = "FFI error code \(remoteServerError.pointee.code)"
                 }
                 idevice_error_free(remoteServerError)
                 remoteServer = nil
@@ -1202,20 +1206,31 @@ def patch_build60_location_engine():
         if !rsdOK {
             cleanup()
             return remoteServerCode
-        }'''
-    if old not in c:
-        raise SystemExit("Build60: current LocationEngine tunnel block changed; refusing unsafe patch")
-    c = c.replace(old, new, 1)
+        }
 
-    # Always discard stale handles before a fresh user action.
-    old2 = '''    private static func setLocked(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String) {
+        if let simError = location_simulation_new(remoteServer, &locationSimulation) {
+            idevice_error_free(simError)
+            cleanup()
+            return simulationCreate
+        }
+        remoteServer = nil
+
+        if let setError = location_simulation_set(locationSimulation, latitude, longitude) {
+            idevice_error_free(setError)
+            cleanup()
+            return locationSet
+        }
+        return ok
+    }
+
 '''
-    # no-op: signature is Int32 in current upstream; cleanup is already called
-    # when an active simulation fails.
+    pat = re.compile(r'    private static func setLocked\(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String\) -> Int32 \{.*?\n    \}\n\n    private static func clearLocked', re.S)
+    m = pat.search(c)
+    if not m:
+        raise SystemExit("Build60: setLocked function not found")
+    c = c[:m.start()] + new_func + '    private static func clearLocked' + c[m.end():]
 
     p.write_text(c, encoding="utf-8")
-
-    import re
     project = ROOT / "project.yml"
     if project.exists():
         ps = project.read_text(encoding="utf-8")
