@@ -524,7 +524,7 @@ if icon_svg.exists():
     # Reuse the same DPort artwork as the live simulated-GPS map marker.
     # Keeping this as a separate image set avoids depending on the app-icon
     # asset name at runtime.
-    map_pin = assets / "DPortMapPin.imageset"
+    map_pin = ROOT / "Locus/Resources/Assets.xcassets/DPortMapPin.imageset"
     map_pin.mkdir(parents=True, exist_ok=True)
     for size, scale in [(40, 2), (60, 3)]:
         subprocess.run([
@@ -1267,6 +1267,57 @@ if _root_path.exists():
 
 if _map_path.exists():
     home = _map_path.read_text(encoding="utf-8")
+
+    # Replace the upstream simulated-GPS marker with the DPort branded marker.
+    old_sim_marker = """                    if let sim = session.simulated {
+                        Annotation("Spoof", coordinate: sim) {
+                            ZStack {
+                                Circle().fill(LocusTheme.accent.opacity(0.25)).frame(width: 44, height: 44)
+                                Circle().fill(LocusTheme.accent).frame(width: 14, height: 14)
+                                    .overlay(Circle().stroke(.white, lineWidth: 2))
+                            }
+                        }
+                    }"""
+    new_sim_marker = """                    if let sim = session.simulated {
+                        Annotation("DPort", coordinate: sim, anchor: .center) {
+                            DPortSimulatedMarker(isActive: session.isSpoofing)
+                        }
+                    }"""
+    if old_sim_marker in home:
+        home = home.replace(old_sim_marker, new_sim_marker, 1)
+
+    if "struct DPortSimulatedMarker: View" not in home:
+        home += r"""
+
+private struct DPortSimulatedMarker: View {
+    let isActive: Bool
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(LocusTheme.accent.opacity(isActive ? 0.22 : 0.14))
+                .frame(width: pulse ? 56 : 48, height: pulse ? 56 : 48)
+
+            Image("DPortMapPin")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 34, height: 34)
+                .shadow(color: .black.opacity(0.28), radius: 3, y: 2)
+        }
+        .scaleEffect(pulse ? 1.04 : 1.0)
+        .animation(
+            isActive
+                ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+                : .default,
+            value: pulse
+        )
+        .onAppear { pulse = isActive }
+        .onChange(of: isActive) { _, active in pulse = active }
+        .accessibilityLabel("DPort 模擬位置")
+    }
+}
+"""
 
     # Replace the top chrome button row with four labeled controls so the
     # labels are always visible on iPhone, rather than appearing only as icons.
