@@ -345,6 +345,20 @@ for swift in ROOT.joinpath("Locus").rglob("*.swift"):
 vpn_path = ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
 if vpn_path.exists():
     vpn = vpn_path.read_text(encoding="utf-8")
+    old = '        if addresses.contains(target) { return true }'
+    new = '''        if addresses.contains(target) { return true }
+        // Current LocalDevVPN uses the phone endpoint 10.7.1.1 while
+        // 10.7.0.1 is the peer. Treat the local endpoint as connected.
+        if addresses.contains(where: { $0.hasPrefix("10.7.1.") }) { return true }'''
+    if old in vpn and 'hasPrefix("10.7.1.")' not in vpn:
+        vpn = vpn.replace(old, new, 1)
+    vpn_path.write_text(vpn, encoding="utf-8")
+
+# Current LocalDevVPN uses utun=10.7.1.1/32 and peer/device=10.7.0.1/32.
+# The old check incorrectly required the peer IP to be assigned locally.
+vpn_path = ROOT / "Locus" / "Support" / "LocalDevVPN.swift"
+if vpn_path.exists():
+    vpn = vpn_path.read_text(encoding="utf-8")
     # Keep installation state separate from tunnel connectivity.
     # canOpenURL may transiently return false on iOS while the VPN is
     # disconnected; once DPort has confirmed/used LocalDevVPN, remember that
