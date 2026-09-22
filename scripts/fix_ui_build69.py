@@ -12,7 +12,7 @@ if not ROOT_VIEW.exists():
 
 s = ROOT_VIEW.read_text(encoding="utf-8")
 
-# DPort Build 75: immediate LocalDevVPN prompt when the app opens without the tunnel.
+# DPort Build 76: immediate LocalDevVPN prompt when the app opens without the tunnel.
 root_alert = '''        .alert("DPort", isPresented: Binding(
             get: { session.lastError != nil },
             set: { if !$0 { session.lastError = nil } }
@@ -55,6 +55,22 @@ if SPOOF_SESSION.exists():
         ss = ss.replace(
             "        let start = simulated ?? pin ?? locationKeeper.lastKnownCoordinate",
             "        locationKeeper.start()\n        let start = simulated ?? pin ?? locationKeeper.lastKnownCoordinate",
+            1
+        )
+
+        ss = ss.replace(
+            """    func updateJoystick(vector: CGVector) {
+        joystickVector = vector
+    }""",
+            """    func updateJoystick(vector: CGVector) {
+        joystickVector = vector
+    }
+
+    /// Current joystick speed for the DPort UI, in km/h.
+    var joystickSpeedKmh: Double {
+        let magnitude = min(1.0, hypot(joystickVector.dx, joystickVector.dy))
+        return travelMode.baseSpeed * magnitude * 3.6
+    }""",
             1
         )
 
@@ -144,9 +160,23 @@ new_block = r'''struct BottomControlsView: View {
                         .buttonStyle(.plain)
                     }
 
-                    Text("搖桿模式")
+                    Text("GPS 搖桿")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.primary)
+
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(session.isSpoofing ? LocusTheme.statusGood : Color.blue)
+                            .frame(width: 7, height: 7)
+                        Text(session.isSpoofing ? "模擬 GPS" : "真實 GPS")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("•")
+                            .foregroundStyle(.secondary)
+                        Text(String(format: "%.1f km/h", session.joystickSpeedKmh))
+                            .font(.system(size: 10, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(.primary.opacity(0.9))
                 }
                 .frame(width: leftWidth)
                 .frame(maxHeight: .infinity, alignment: .center)
@@ -172,13 +202,32 @@ new_block = r'''struct BottomControlsView: View {
                         trayIcon("star.fill", title: "我的最愛") {
                             showPlaces = true
                         }
+                        trayIcon("clock.arrow.circlepath", title: "最近使用") {
+                            showPlaces = true
+                        }
                         trayIcon("mappin.and.ellipse", title: "標記") {
                             showCoordinates = true
                         }
-                        trayIcon("ellipsis", title: "更多") {
-                            showPlaces = true
+                    }
+
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusBad)
+                            .frame(width: 7, height: 7)
+                        Text(LocalDevVPN.isConnected ? "LocalDevVPN 已連線" : "LocalDevVPN 未連線")
+                            .font(.system(size: 10, weight: .bold))
+                        Spacer(minLength: 4)
+                        if let coord = session.simulated ?? session.realCoordinate {
+                            Text(String(format: "%.4f, %.4f", coord.latitude, coord.longitude))
+                                .font(.system(size: 9, weight: .semibold))
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.65)
                         }
                     }
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 8)
+                    .frame(height: 24)
 
                     HStack(spacing: 7) {
                         // 定位與停止定位分開：定位中也能直接套用新的座標，
@@ -188,8 +237,8 @@ new_block = r'''struct BottomControlsView: View {
                                 session.lastError = "請先連線 LocalDevVPN，再使用定位或搖桿。"
                                 return
                             }
-                            guard let pin = session.pin else {
-                                session.lastError = "請先點選地圖放置圖釘，或直接使用搖桿。"
+                            guard let pin = session.pin ?? session.realCoordinate else {
+                                session.lastError = "目前沒有可用的 GPS 座標。"
                                 return
                             }
                             session.teleport(to: pin, pairing: pairing)
@@ -233,11 +282,11 @@ new_block = r'''struct BottomControlsView: View {
                 .frame(maxWidth: .infinity)
             }
             .padding(12)
-            .frame(width: proxy.size.width, height: compact ? 252 : 268)
+            .frame(width: proxy.size.width, height: compact ? 258 : 276)
             .locusGlass(.regular, in: trayShape)
             .contentShape(trayShape)
         }
-        .frame(height: 268)
+        .frame(height: 276)
         .onAppear {
             if pairing.hasPairingFile && !session.joystickActive && LocalDevVPN.isConnected {
                 session.startJoystick(pairing: pairing)
@@ -315,7 +364,7 @@ ROOT_VIEW.write_text(s, encoding="utf-8")
 
 # Build 73 is set before xcodegen/build.
 project = PROJECT.read_text(encoding="utf-8")
-project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "75"', project, count=1)
+project = re.sub(r'CURRENT_PROJECT_VERSION:\s*"\d+"', 'CURRENT_PROJECT_VERSION: "76"', project, count=1)
 PROJECT.write_text(project, encoding="utf-8")
 
 print("DPort Build 73 UI applied: separate locate/stop buttons; locating can replace the active simulated coordinate.")
