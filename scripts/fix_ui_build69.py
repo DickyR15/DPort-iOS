@@ -1,3 +1,4 @@
+# DPort Nearby Places + Map Drawing: keep both controls independent.
 #!/usr/bin/env python3
 from pathlib import Path
 import re
