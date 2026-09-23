@@ -57,7 +57,7 @@ jobs:
           assert nearby >= 0, "Nearby Places action was not applied"
           assert drawing > nearby, "Drawing action appears after Nearby Places"
           drawing_button = toolbar.find('chromeIconButton(drawMode ?', nearby)
-          nearby_block = toolbar[nearby-350:drawing_button if drawing_button >= 0 else nearby+500]
+          nearby_block = toolbar[nearby:nearby+260]
           assert 'drawMode' not in nearby_block, "Nearby Places action touches drawMode"
           assert 'chromeIconButton(drawMode ?' in toolbar, "Map drawing button was not restored"
           print("DPort Nearby Places / Map Drawing separation guard: PASS")
