@@ -468,8 +468,8 @@ if MAP_HOME.exists():
     # Replace the third map toolbar button by position, not by exact upstream
     # whitespace, because upstream Locus revisions can format this block differently.
     nearby_pattern = re.compile(
-        r'(chromeIconButton\\([^\\n]*drawMode[^\\n]*\\)\\s*\\{.*?'
-        r'\\n\\s*\\}\\s*\\n\\s*\\.foregroundStyle\\([^\\n]*drawMode[^\\n]*\\)\\s*)',
+        r'(chromeIconButton\([^\n]*drawMode[^\n]*\)\s*\{.*?'
+        r'\n\s*\}\s*\n\s*\.foregroundStyle\([^\n]*drawMode[^\n]*\)\s*)',
         re.S
     )
     nearby_replacement = '''chromeIconButton("mappin.and.ellipse") {
@@ -482,12 +482,12 @@ if MAP_HOME.exists():
     if nearby_count == 0:
         # Fallback: target the third chromeIconButton inside mapChromeButtons.
         toolbar_match = re.search(
-            r'(private var mapChromeButtons: some View\\s*\\{.*?)(\\n\\s*\\}\\n\\s*private var locateButton)',
+            r'(private var mapChromeButtons: some View\s*\{.*?)(\n\s*\}\n\s*private var locateButton)',
             mh, re.S
         )
         if toolbar_match:
             toolbar = toolbar_match.group(1)
-            buttons = list(re.finditer(r'chromeIconButton\\(', toolbar))
+            buttons = list(re.finditer(r'chromeIconButton\(', toolbar))
             if len(buttons) >= 3:
                 b = buttons[2]
                 depth = 0
