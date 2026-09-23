@@ -41,6 +41,16 @@ jobs:
           python3 ../scripts/apply_dport_build39.py
           python3 ../scripts/fix_localdevvpn_build52.py
           python3 ../scripts/fix_ui_build69.py
+          # Build guard: the third top map button must be Nearby Places, not draw mode.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("Locus/Features/Map/MapHomeView.swift")
+          t = p.read_text(encoding="utf-8")
+          assert 'chromeIconButton("mappin.and.ellipse")' in t, "Nearby Places button was not applied"
+          assert 'showNearbyPlaces = true' in t, "Nearby Places action was not applied"
+          assert 'chromeIconButton(drawMode ?' not in t, "Old draw-mode toolbar button remains"
+          print("DPort nearby places guard: PASS")
+          PY
 
       - name: Hide internal build number from DPort version display
         working-directory: src-build
