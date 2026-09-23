@@ -463,6 +463,8 @@ if MAP_HOME.exists():
     if state_anchor in mh and "showNearbyPlaces" not in mh:
         mh = mh.replace(state_anchor, state_new, 1)
 
+    # The upstream map toolbar uses this exact draw-mode block. Replace it
+    # explicitly so 「附近地點」 can no longer enter route/draw mode.
     old_nearby_button = '''            chromeIconButton(drawMode ? "pencil.tip.crop.circle.badge.minus" : "pencil.tip.crop.circle") {
                 drawMode.toggle()
                 if !drawMode { drawnPath.removeAll() }
