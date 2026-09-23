@@ -497,46 +497,6 @@ if MAP_HOME.exists():
         .contentShape(Capsule())
     }'''
     mh = mh[:toolbar_start] + toolbar_replacement + mh[toolbar_end:]
-    # explicitly so 「附近地點」 can no longer enter route/draw mode.
-    # Replace the third map toolbar button by position, not by exact upstream
-    # whitespace, because upstream Locus revisions can format this block differently.
-    nearby_pattern = re.compile(
-        r'(chromeIconButton\([^\n]*drawMode[^\n]*\)\s*\{.*?'
-        r'\n\s*\}\s*\n\s*\.foregroundStyle\([^\n]*drawMode[^\n]*\)\s*)',
-        re.S
-    )
-    nearby_replacement = '''chromeIconButton("mappin.and.ellipse") {
-                showNearbyPlaces = true
-                searchNearbyPlaces()
-            }
-            .accessibilityLabel("附近地點")
-'''
-    mh, nearby_count = nearby_pattern.subn(nearby_replacement, mh, count=1)
-    if nearby_count == 0:
-        # Fallback: target the third chromeIconButton inside mapChromeButtons.
-        toolbar_match = re.search(
-            r'(private var mapChromeButtons: some View\s*\{.*?)(\n\s*\}\n\s*private var locateButton)',
-            mh, re.S
-        )
-        if toolbar_match:
-            toolbar = toolbar_match.group(1)
-            buttons = list(re.finditer(r'chromeIconButton\(', toolbar))
-            if len(buttons) >= 3:
-                b = buttons[2]
-                depth = 0
-                end = None
-                for i in range(b.end(), len(toolbar)):
-                    if toolbar[i] == '{': depth += 1
-                    elif toolbar[i] == '}':
-                        if depth == 0:
-                            end = i + 1
-                            break
-                        depth -= 1
-                if end:
-                    old_segment = toolbar[b.start():end]
-                    toolbar = toolbar[:b.start()] + nearby_replacement.rstrip() + toolbar[end:]
-                    mh = mh[:toolbar_match.start(1)] + toolbar + mh[toolbar_match.end(1):]
-
     sheet_anchor = '''        .sheet(isPresented: $showRouteSheet) {
 '''
     sheet_block = '''        .sheet(isPresented: $showNearbyPlaces) {
