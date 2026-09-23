@@ -151,32 +151,18 @@ new_block = r'''struct BottomControlsView: View {
             HStack(spacing: 12) {
                 // MARK: Left — joystick
                 VStack(spacing: 8) {
-                    if session.joystickActive {
-                        JoystickPad { vector in
-                            session.updateJoystick(vector: vector)
+                    JoystickPad { vector in
+                        if !LocalDevVPN.isConnected {
+                            session.lastError = "請先連線 LocalDevVPN，才能使用搖桿。"
+                            return
                         }
-                        .frame(width: compact ? 132 : 144, height: compact ? 132 : 144)
-                    } else {
-                        Button {
+                        if !session.joystickActive {
                             session.startJoystick(pairing: pairing)
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.primary.opacity(0.06))
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.primary.opacity(0.14), lineWidth: 1)
-                                    )
-
-                                Image(systemName: "dot.circle.and.hand.point.up.left.fill")
-                                    .font(.system(size: 34, weight: .medium))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(width: compact ? 132 : 144, height: compact ? 132 : 144)
-                            .contentShape(Circle())
                         }
-                        .buttonStyle(.plain)
+                        session.updateJoystick(vector: vector)
                     }
+                    .frame(width: compact ? 132 : 144, height: compact ? 132 : 144)
+                    .contentShape(Circle())
 
                     Text("GPS 搖桿")
                         .font(.caption.weight(.semibold))
