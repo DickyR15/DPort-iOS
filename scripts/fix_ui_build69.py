@@ -488,23 +488,17 @@ if MAP_HOME.exists():
             .frame(width: 48, height: 48)
             .contentShape(Circle())
             .accessibilityLabel("附近地點")
+            .zIndex(20)
+            .allowsHitTesting(true)
 
-            // Drawing is a completely separate control.
+            // Drawing is the fourth and final top-map tool.
+            // Favorites remain in the bottom tray; do not replace this slot with a star.
             chromeIconButton(drawMode ? "pencil.tip.crop.circle.badge.minus" : "pencil.tip.crop.circle") {
                 drawMode.toggle()
                 if !drawMode { drawnPath.removeAll() }
             }
             .foregroundStyle(drawMode ? LocusTheme.accentSecondary : .primary)
             .accessibilityLabel(drawMode ? "停止繪製" : "繪製路徑")
-
-            if session.pin != nil {
-                chromeIconButton("star.circle") {
-                    if let pin = session.pin {
-                        let name = session.suggestedFavoriteName(for: pin, fallback: pinPlaceName)
-                        session.addFavorite(name: name, coordinate: pin)
-                    }
-                }
-            }
         }
         .padding(6)
         .locusGlass(.clear, in: Capsule())
