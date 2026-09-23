@@ -42,6 +42,9 @@ jobs:
           python3 ../scripts/fix_localdevvpn_build52.py
           python3 ../scripts/fix_ui_build69.py
           # Build guard: the third top map button must be Nearby Places, not draw mode.
+          echo "---- MapHomeView toolbar after patches ----"
+          nl -ba Locus/Features/Map/MapHomeView.swift | sed -n '260,305p'
+          echo "-------------------------------------------"
           python3 - <<'PY'
           from pathlib import Path
           p = Path("Locus/Features/Map/MapHomeView.swift")
