@@ -296,8 +296,7 @@ new_block = r'''struct BottomControlsView: View {
                                     guard session.isSpoofing || session.simulated != nil else { return }
                                     session.stop(pairing: pairing)
                                     session.simulated = nil
-                                    session.pin = nil
-                                    session.lastError = "已停止並清除模擬位置"
+                                    session.lastError = "已停止定位，保留目前圖釘位置"
                                 }
                         )
                     }
@@ -690,6 +689,7 @@ private struct NearbyPlacesSheet: View {
                                         .lineLimit(2)
                                 }
                             }
+                            .zIndex(2)
                         }
                     }
                     .listStyle(.plain)
@@ -718,7 +718,7 @@ if MAP_HOME.exists():
     mh = mh.replace(
         """                    if let pin = session.pin {
                         Annotation("", coordinate: pin, anchor: .bottom) {""",
-        """                    if let pin = session.pin, !session.isSpoofing {
+        """                    if let pin = session.pin {
                         Annotation("", coordinate: pin, anchor: .bottom) {""",
         1,
     )
