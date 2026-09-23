@@ -463,12 +463,12 @@ if MAP_HOME.exists():
     if state_anchor in mh and "showNearbyPlaces" not in mh:
         mh = mh.replace(state_anchor, state_new, 1)
 
-    # Replace the entire top map toolbar so the third control is unambiguously
-    # Nearby Places. This avoids relying on upstream draw-mode formatting.
-    toolbar_re = re.compile(
-        r'    private var mapChromeButtons: some View \{.*?\n    \}\n\n    private var locateButton',
-        re.S
-    )
+    # Replace the entire top map toolbar using simple source indexes so the
+    # result remains syntactically identical to the surrounding Swift.
+    toolbar_start = mh.find("    private var mapChromeButtons: some View {")
+    toolbar_end = mh.find("\n    private var locateButton", toolbar_start)
+    if toolbar_start < 0 or toolbar_end < 0:
+        raise SystemExit("DPort toolbar replacement failed: mapChromeButtons block not found")
     toolbar_replacement = '''    private var mapChromeButtons: some View {
         HStack(spacing: 4) {
             chromeIconButton("square.3.layers.3d") {
@@ -498,9 +498,7 @@ if MAP_HOME.exists():
     }
 
     private var locateButton'''
-    mh, toolbar_count = toolbar_re.subn(toolbar_replacement, mh, count=1)
-    if toolbar_count == 0:
-        raise SystemExit("DPort toolbar replacement failed: mapChromeButtons block not found")
+    mh = mh[:toolbar_start] + toolbar_replacement + mh[toolbar_end + 1:]
     # explicitly so 「附近地點」 can no longer enter route/draw mode.
     # Replace the third map toolbar button by position, not by exact upstream
     # whitespace, because upstream Locus revisions can format this block differently.
