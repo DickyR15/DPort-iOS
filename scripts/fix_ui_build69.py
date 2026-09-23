@@ -495,9 +495,7 @@ if MAP_HOME.exists():
         .padding(6)
         .locusGlass(.clear, in: Capsule())
         .contentShape(Capsule())
-    }
-
-    private var locateButton'''
+    }'''
     mh = mh[:toolbar_start] + toolbar_replacement + mh[toolbar_end:]
     # explicitly so 「附近地點」 can no longer enter route/draw mode.
     # Replace the third map toolbar button by position, not by exact upstream
