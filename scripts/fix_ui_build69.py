@@ -445,6 +445,246 @@ s = s.replace(
 )
 
 
+
+# DPort nearby places: make the top 「附近地點」 control explicit instead of
+# silently doing a generic search. It opens categories and lets the user apply
+# a selected POI directly as the simulated position.
+if MAP_HOME.exists():
+    mh = MAP_HOME.read_text(encoding="utf-8")
+
+    state_anchor = '''    @State private var pinPlaceName: String?
+'''
+    state_new = '''    @State private var pinPlaceName: String?
+    @State private var showNearbyPlaces = false
+    @State private var nearbyCategory: NearbyCategory = .restaurant
+    @State private var nearbyPlaces: [NearbyPlace] = []
+    @State private var nearbyLoading = false
+'''
+    if state_anchor in mh and "showNearbyPlaces" not in mh:
+        mh = mh.replace(state_anchor, state_new, 1)
+
+    old_nearby_button = '''            chromeIconButton(drawMode ? "pencil.tip.crop.circle.badge.minus" : "pencil.tip.crop.circle") {
+                drawMode.toggle()
+                if !drawMode { drawnPath.removeAll() }
+            }
+            .foregroundStyle(drawMode ? LocusTheme.accentSecondary : .primary)
+'''
+    new_nearby_button = '''            chromeIconButton("mappin.and.ellipse") {
+                showNearbyPlaces = true
+                searchNearbyPlaces()
+            }
+            .accessibilityLabel("附近地點")
+'''
+    if old_nearby_button in mh:
+        mh = mh.replace(old_nearby_button, new_nearby_button, 1)
+
+    sheet_anchor = '''        .sheet(isPresented: $showRouteSheet) {
+'''
+    sheet_block = '''        .sheet(isPresented: $showNearbyPlaces) {
+            NearbyPlacesSheet(
+                category: $nearbyCategory,
+                places: nearbyPlaces,
+                isLoading: nearbyLoading,
+                onSelect: { place in
+                    session.pin = place.coordinate
+                    pinPlaceName = place.name
+                    pinSelected = false
+                    position = .region(MKCoordinateRegion(
+                        center: place.coordinate,
+                        latitudinalMeters: 1200,
+                        longitudinalMeters: 1200
+                    ))
+                    session.pushNamedRecent(name: place.name, coordinate: place.coordinate)
+                    showNearbyPlaces = false
+                },
+                onSearch: { searchNearbyPlaces() }
+            )
+            .presentationDetents([.medium, .large])
+        }
+'''
+    if sheet_anchor in mh and "NearbyPlacesSheet(" not in mh:
+        mh = mh.replace(sheet_anchor, sheet_block + sheet_anchor, 1)
+
+    route_marker = '''    private func buildRoadRoute() {
+'''
+    nearby_method = r'''    private func searchNearbyPlaces() {
+        let center = session.isSpoofing ? session.simulated : session.realCoordinate
+        guard let center else {
+            session.lastError = "目前沒有可用的位置，無法搜尋附近地點。"
+            return
+        }
+
+        nearbyLoading = true
+        nearbyPlaces.removeAll()
+
+        Task {
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = nearbyCategory.query
+            request.region = MKCoordinateRegion(
+                center: center,
+                latitudinalMeters: 3000,
+                longitudinalMeters: 3000
+            )
+            request.resultTypes = [.pointOfInterest]
+
+            let response = try? await MKLocalSearch(request: request).start()
+            let found = (response?.mapItems ?? []).prefix(20).compactMap { item -> NearbyPlace? in
+                guard let name = item.name else { return nil }
+                return NearbyPlace(
+                    name: name,
+                    address: item.placemark.title ?? "",
+                    coordinate: item.placemark.coordinate
+                )
+            }
+
+            await MainActor.run {
+                nearbyPlaces = Array(found)
+                nearbyLoading = false
+            }
+        }
+    }
+
+'''
+    if route_marker in mh and "private func searchNearbyPlaces()" not in mh:
+        mh = mh.replace(route_marker, nearby_method + route_marker, 1)
+
+    ext_marker = '''private extension UIWindowScene {
+'''
+    nearby_types = r'''private enum NearbyCategory: String, CaseIterable, Identifiable {
+    case restaurant = "餐廳"
+    case cafe = "咖啡廳"
+    case convenience = "便利商店"
+    case gas = "加油站"
+    case hospital = "醫院"
+    case restroom = "公共廁所"
+    case shopping = "賣場"
+    case hotel = "飯店"
+    case attraction = "景點"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .restaurant: return "fork.knife"
+        case .cafe: return "cup.and.saucer.fill"
+        case .convenience: return "storefront.fill"
+        case .gas: return "fuelpump.fill"
+        case .hospital: return "cross.case.fill"
+        case .restroom: return "figure.stand"
+        case .shopping: return "cart.fill"
+        case .hotel: return "bed.double.fill"
+        case .attraction: return "camera.fill"
+        }
+    }
+
+    var query: String {
+        switch self {
+        case .restaurant: return "餐廳"
+        case .cafe: return "咖啡廳"
+        case .convenience: return "便利商店"
+        case .gas: return "加油站"
+        case .hospital: return "醫院"
+        case .restroom: return "公共廁所"
+        case .shopping: return "購物中心 賣場"
+        case .hotel: return "飯店"
+        case .attraction: return "景點"
+        }
+    }
+}
+
+private struct NearbyPlace: Identifiable {
+    let id = UUID()
+    let name: String
+    let address: String
+    let coordinate: CLLocationCoordinate2D
+}
+
+private struct NearbyPlacesSheet: View {
+    @Binding var category: NearbyCategory
+    let places: [NearbyPlace]
+    let isLoading: Bool
+    let onSelect: (NearbyPlace) -> Void
+    let onSearch: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 10) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(NearbyCategory.allCases) { item in
+                            Button {
+                                category = item
+                                onSearch()
+                            } label: {
+                                Label(item.rawValue, systemImage: item.icon)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 11)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        Capsule().fill(
+                                            category == item
+                                            ? LocusTheme.accent
+                                            : Color.primary.opacity(0.08)
+                                        )
+                                    )
+                                    .foregroundStyle(category == item ? .black : .primary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
+
+                if isLoading {
+                    Spacer()
+                    ProgressView("正在搜尋附近\(category.rawValue)…")
+                    Spacer()
+                } else if places.isEmpty {
+                    Spacer()
+                    ContentUnavailableView(
+                        "找不到附近\(category.rawValue)",
+                        systemImage: "mappin.slash",
+                        description: Text("請選擇其他分類或重新搜尋。")
+                    )
+                    Spacer()
+                } else {
+                    List(places) { place in
+                        Button {
+                            onSelect(place)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(place.name)
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                if !place.address.isEmpty {
+                                    Text(place.address)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .padding(.top, 8)
+            .navigationTitle("附近地點")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("重新搜尋", action: onSearch)
+                }
+            }
+        }
+    }
+}
+
+'''
+    if ext_marker in mh and "private enum NearbyCategory" not in mh:
+        mh = mh.replace(ext_marker, nearby_types + ext_marker, 1)
+
+    MAP_HOME.write_text(mh, encoding="utf-8")
+
 # DPort 6.9.0: clean circular simulated GPS marker; never show the selection pin during spoofing.
 if MAP_HOME.exists():
     mh = MAP_HOME.read_text(encoding="utf-8")
