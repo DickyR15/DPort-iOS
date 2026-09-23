@@ -712,7 +712,7 @@ private struct NearbyPlacesSheet: View {
 
     MAP_HOME.write_text(mh, encoding="utf-8")
 
-# DPort 6.9.0: clean circular simulated GPS marker; never show the selection pin during spoofing.
+# DPort 6.9.0: keep the selected location pin visible during and after spoofing.
 if MAP_HOME.exists():
     mh = MAP_HOME.read_text(encoding="utf-8")
     mh = mh.replace(
