@@ -60,7 +60,10 @@ jobs:
           nearby_block = toolbar[nearby:nearby+260]
           assert 'drawMode' not in nearby_block, "Nearby Places action touches drawMode"
           assert 'chromeIconButton(drawMode ?' in toolbar, "Map drawing button was not restored"
-          print("DPort Nearby Places / Map Drawing separation guard: PASS")
+          assert 'star.circle' not in toolbar, "Top toolbar must not replace Drawing with Favorites"
+          assert toolbar.count('chromeIconButton(') == 3, "Expected 3 chromeIconButton controls plus the explicit Nearby Places Button"
+          assert toolbar.count('Button {') >= 1, "Nearby Places Button missing"
+          print("DPort Nearby Places / Map Drawing fixed-toolbar guard: PASS")
           PY
 
       - name: Hide internal build number from DPort version display
