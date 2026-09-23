@@ -49,13 +49,16 @@ jobs:
           from pathlib import Path
           p = Path("Locus/Features/Map/MapHomeView.swift")
           t = p.read_text(encoding="utf-8")
-          nearby = t.find('showNearbyPlaces = true')
-          drawing = t.find('drawMode.toggle()')
+          toolbar_start = t.find('private var mapChromeButtons: some View')
+          toolbar_end = t.find('private var locateButton: some View', toolbar_start)
+          toolbar = t[toolbar_start:toolbar_end]
+          nearby = toolbar.find('showNearbyPlaces = true')
+          drawing = toolbar.find('drawMode.toggle()')
           assert nearby >= 0, "Nearby Places action was not applied"
-          assert drawing > nearby, "Drawing action appears before Nearby Places"
-          nearby_block = t[nearby-350:nearby+500]
+          assert drawing > nearby, "Drawing action appears after Nearby Places"
+          nearby_block = toolbar[nearby-350:nearby+500]
           assert 'drawMode' not in nearby_block, "Nearby Places action touches drawMode"
-          assert 'chromeIconButton(drawMode ?' in t, "Map drawing button was not restored"
+          assert 'chromeIconButton(drawMode ?' in toolbar, "Map drawing button was not restored"
           print("DPort Nearby Places / Map Drawing separation guard: PASS")
           PY
 
