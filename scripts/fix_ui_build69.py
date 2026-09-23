@@ -466,7 +466,7 @@ if MAP_HOME.exists():
     # Replace the entire top map toolbar using simple source indexes so the
     # result remains syntactically identical to the surrounding Swift.
     toolbar_start = mh.find("    private var mapChromeButtons: some View {")
-    toolbar_end = mh.find("\n    private var locateButton", toolbar_start)
+    toolbar_end = mh.find("\n    private var locateButton: some View {", toolbar_start)
     if toolbar_start < 0 or toolbar_end < 0:
         raise SystemExit("DPort toolbar replacement failed: mapChromeButtons block not found")
     toolbar_replacement = '''    private var mapChromeButtons: some View {
