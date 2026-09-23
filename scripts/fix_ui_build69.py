@@ -463,7 +463,44 @@ if MAP_HOME.exists():
     if state_anchor in mh and "showNearbyPlaces" not in mh:
         mh = mh.replace(state_anchor, state_new, 1)
 
-    # The upstream map toolbar uses this exact draw-mode block. Replace it
+    # Replace the entire top map toolbar so the third control is unambiguously
+    # Nearby Places. This avoids relying on upstream draw-mode formatting.
+    toolbar_re = re.compile(
+        r'    private var mapChromeButtons: some View \{.*?\n    \}\n\n    private var locateButton',
+        re.S
+    )
+    toolbar_replacement = '''    private var mapChromeButtons: some View {
+        HStack(spacing: 4) {
+            chromeIconButton("square.3.layers.3d") {
+                session.mapStyleIndex = (session.mapStyleIndex + 1) % 3
+            }
+            chromeIconButton("point.topleft.down.to.point.bottomright.curvepath") {
+                showRouteSheet = true
+            }
+            chromeIconButton("mappin.and.ellipse") {
+                showNearbyPlaces = true
+                searchNearbyPlaces()
+            }
+            .accessibilityLabel("附近地點")
+
+            if session.pin != nil {
+                chromeIconButton("star.circle") {
+                    if let pin = session.pin {
+                        let name = session.suggestedFavoriteName(for: pin, fallback: pinPlaceName)
+                        session.addFavorite(name: name, coordinate: pin)
+                    }
+                }
+            }
+        }
+        .padding(6)
+        .locusGlass(.clear, in: Capsule())
+        .contentShape(Capsule())
+    }
+
+    private var locateButton'''
+    mh, toolbar_count = toolbar_re.subn(toolbar_replacement, mh, count=1)
+    if toolbar_count == 0:
+        raise SystemExit("DPort toolbar replacement failed: mapChromeButtons block not found")
     # explicitly so 「附近地點」 can no longer enter route/draw mode.
     # Replace the third map toolbar button by position, not by exact upstream
     # whitespace, because upstream Locus revisions can format this block differently.
