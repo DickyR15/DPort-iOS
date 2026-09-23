@@ -76,8 +76,8 @@ jobs:
       - name: Debug map pin source
         working-directory: src-build
         run: |
-          echo "---- MapHomeView pin/map markers ----"
-          grep -n -E 'session\.pin|Annotation|Map\(' Locus/Features/Map/MapHomeView.swift | head -80 || true
+          echo "---- MapHomeView pin/map source ----"
+          nl -ba Locus/Features/Map/MapHomeView.swift | sed -n '35,115p'
           echo "-------------------------------------"
       - name: Debug patched MapHomeView
         working-directory: src-build
