@@ -477,13 +477,19 @@ if MAP_HOME.exists():
             chromeIconButton("point.topleft.down.to.point.bottomright.curvepath") {
                 showRouteSheet = true
             }
-            chromeIconButton("mappin.and.ellipse") {
+            // IMPORTANT: Nearby Places must never touch drawMode.
+            Button {
                 showNearbyPlaces = true
                 searchNearbyPlaces()
+            } label: {
+                Image(systemName: "mappin.and.ellipse")
             }
+            .buttonStyle(.plain)
+            .frame(width: 48, height: 48)
+            .contentShape(Circle())
             .accessibilityLabel("附近地點")
 
-            // Keep map drawing as a separate tool from Nearby Places.
+            // Drawing is a completely separate control.
             chromeIconButton(drawMode ? "pencil.tip.crop.circle.badge.minus" : "pencil.tip.crop.circle") {
                 drawMode.toggle()
                 if !drawMode { drawnPath.removeAll() }
