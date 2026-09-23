@@ -483,6 +483,14 @@ if MAP_HOME.exists():
             }
             .accessibilityLabel("附近地點")
 
+            // Keep map drawing as a separate tool from Nearby Places.
+            chromeIconButton(drawMode ? "pencil.tip.crop.circle.badge.minus" : "pencil.tip.crop.circle") {
+                drawMode.toggle()
+                if !drawMode { drawnPath.removeAll() }
+            }
+            .foregroundStyle(drawMode ? LocusTheme.accentSecondary : .primary)
+            .accessibilityLabel(drawMode ? "停止繪製" : "繪製路徑")
+
             if session.pin != nil {
                 chromeIconButton("star.circle") {
                     if let pin = session.pin {
