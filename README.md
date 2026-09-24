@@ -29,3 +29,10 @@ Locus uses Apple developer location simulation / on-device developer tunnel mech
 - Brand: Dicky / DPort
 
 The IPA produced by this workflow is unsigned and is intended to be signed by the sideloading tool used on the target device.
+
+
+## 授權與第三方元件
+
+DPort iOS 基於 MIT 授權的 Locus 專案修改而成，並保留 upstream 的 MIT 授權與著作權聲明。DPort 自有修改包含 DPort 品牌、繁體中文（台灣）在地化，以及 DPort-specific build/packaging 調整。
+
+完整資訊請參閱 [LICENSE](LICENSE) 與 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
