@@ -797,6 +797,556 @@ if SPOOF_SESSION.exists():
     )
     SPOOF_SESSION.write_text(ss, encoding="utf-8")
 
+
+# DPort route simulation toolkit:
+# - Pause / resume / reverse / redirect
+# - Intermediate waypoints with a fixed destination
+# - Keep route playback separate from Stop Location
+ROUTE_SHEET = ROOT / "Locus/Features/Routes/RoutePlannerSheet.swift"
+ROUTE_BUILDER = ROOT / "Locus/Engine/RouteBuilder.swift"
+
+if SPOOF_SESSION.exists():
+    ss = SPOOF_SESSION.read_text(encoding="utf-8")
+
+    state_anchor = """    private var routeTask: Task<Void, Never>?\n"""
+    state_new = """    private var routeTask: Task<Void, Never>?
+    private var activeRoute: [CLLocationCoordinate2D] = []
+    private var routeIndex = 0
+    @Published private(set) var routeIsActive = false
+    @Published private(set) var routePaused = false
+    @Published private(set) var routeProgress: Double = 0
+"""
+    if state_anchor in ss and "private var activeRoute:" not in ss:
+        ss = ss.replace(state_anchor, state_new, 1)
+
+    stop_marker = """    func stop(pairing: PairingStore) {"""
+    stop_start = ss.find(stop_marker)
+    stop_end = ss.find("\n    /// Best-known real device coordinate", stop_start)
+    if stop_start >= 0 and stop_end >= 0:
+        stop_block = ss[stop_start:stop_end]
+        stop_block = stop_block.replace(
+            """        routeTask?.cancel()
+        routeTask = nil""",
+            """        stopRoutePlayback()""",
+            1
+        )
+        ss = ss[:stop_start] + stop_block + ss[stop_end:]
+
+    route_start = ss.find("    func followRoute(_ coordinates: [CLLocationCoordinate2D], pairing: PairingStore) {")
+    route_end = ss.find("\n    func addFavorite(", route_start)
+    if route_start < 0 or route_end < 0:
+        raise SystemExit("DPort route followRoute block not found")
+
+    new_route = r'''    func followRoute(_ coordinates: [CLLocationCoordinate2D], pairing: PairingStore) {
+        guard pairing.hasPairingFile, coordinates.count >= 2 else {
+            lastError = "請先建立至少包含兩個點的路線。"
+            return
+        }
+
+        routeTask?.cancel()
+        stopJoystick()
+        activeRoute = coordinates
+        routeIndex = 0
+        routeProgress = 0
+        routePaused = false
+        routeIsActive = true
+
+        apply(activeRoute[0], pairing: pairing, markRecent: true)
+        startRouteTask(pairing: pairing)
+    }
+
+    func pauseRoute() {
+        guard routeIsActive else { return }
+        routePaused = true
+    }
+
+    func resumeRoute(pairing: PairingStore) {
+        guard routeIsActive else {
+            guard activeRoute.count >= 2, simulated != nil else { return }
+            routeIsActive = true
+            routePaused = false
+            startRouteTask(pairing: pairing)
+            return
+        }
+        routePaused = false
+        if routeTask == nil {
+            startRouteTask(pairing: pairing)
+        }
+    }
+
+    func toggleRoutePauseResume(pairing: PairingStore) {
+        if routePaused {
+            resumeRoute(pairing: pairing)
+        } else {
+            pauseRoute()
+        }
+    }
+
+    func reverseRoute(pairing: PairingStore) {
+        guard activeRoute.count >= 2, let current = simulated else { return }
+        routeTask?.cancel()
+        activeRoute.reverse()
+        routeIndex = nearestRouteIndex(to: current)
+        routeProgress = activeRoute.count > 1
+            ? Double(routeIndex) / Double(activeRoute.count - 1)
+            : 0
+        routePaused = false
+        routeIsActive = true
+        startRouteTask(pairing: pairing)
+    }
+
+    func redirectRoute(_ coordinates: [CLLocationCoordinate2D], pairing: PairingStore) {
+        followRoute(coordinates, pairing: pairing)
+    }
+
+    func stopRoutePlayback() {
+        routeTask?.cancel()
+        routeTask = nil
+        routeIsActive = false
+        routePaused = false
+        activeRoute.removeAll()
+        routeIndex = 0
+        routeProgress = 0
+    }
+
+    private func startRouteTask(pairing: PairingStore) {
+        routeTask?.cancel()
+        routeTask = Task { [weak self] in
+            guard let self else { return }
+            await self.runActiveRoute(pairing: pairing)
+        }
+    }
+
+    private func runActiveRoute(pairing: PairingStore) async {
+        while routeIsActive && !Task.isCancelled {
+            while routePaused && !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            guard routeIndex < activeRoute.count - 1 else {
+                routeProgress = 1
+                routeIsActive = false
+                routePaused = false
+                routeTask = nil
+                return
+            }
+
+            let previous = activeRoute[routeIndex]
+            let next = activeRoute[routeIndex + 1]
+            let distance = CLLocation(
+                latitude: previous.latitude,
+                longitude: previous.longitude
+            ).distance(
+                from: CLLocation(latitude: next.latitude, longitude: next.longitude)
+            )
+
+            let speed = max(0.8, travelMode.baseSpeed * Double.random(in: 0.88...1.12))
+            let stepMeters = min(12, max(4, speed * 0.5))
+            let steps = max(1, Int(ceil(distance / stepMeters)))
+
+            for step in 1...steps {
+                if Task.isCancelled || !routeIsActive { return }
+
+                while routePaused && !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+
+                let t = Double(step) / Double(steps)
+                let coord = CLLocationCoordinate2D(
+                    latitude: previous.latitude + (next.latitude - previous.latitude) * t,
+                    longitude: previous.longitude + (next.longitude - previous.longitude) * t
+                )
+
+                apply(coord, pairing: pairing, markRecent: false)
+                routeProgress = min(
+                    1,
+                    (Double(routeIndex) + t) / Double(max(1, activeRoute.count - 1))
+                )
+
+                let delay = stepMeters / speed
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+
+            routeIndex += 1
+        }
+    }
+
+    private func nearestRouteIndex(to coordinate: CLLocationCoordinate2D) -> Int {
+        guard !activeRoute.isEmpty else { return 0 }
+        var bestIndex = 0
+        var bestDistance = CLLocationDistance.greatestFiniteMagnitude
+
+        for (index, candidate) in activeRoute.enumerated() {
+            let distance = CLLocation(
+                latitude: candidate.latitude,
+                longitude: candidate.longitude
+            ).distance(
+                from: CLLocation(
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude
+                )
+            )
+            if distance < bestDistance {
+                bestDistance = distance
+                bestIndex = index
+            }
+        }
+        return bestIndex
+    }
+
+'''
+    ss = ss[:route_start] + new_route + ss[route_end:]
+    SPOOF_SESSION.write_text(ss, encoding="utf-8")
+
+if ROUTE_BUILDER.exists():
+    rb = ROUTE_BUILDER.read_text(encoding="utf-8")
+    marker = """    static func roadRoute(
+        from start: CLLocationCoordinate2D,
+        to end: CLLocationCoordinate2D,
+        mode: TravelMode
+    ) async throws -> [CLLocationCoordinate2D] {"""
+    if marker in rb and "via waypoints" not in rb:
+        overload = r'''    static func roadRoute(
+        from start: CLLocationCoordinate2D,
+        to end: CLLocationCoordinate2D,
+        via waypoints: [CLLocationCoordinate2D],
+        mode: TravelMode
+    ) async throws -> [CLLocationCoordinate2D] {
+        let stops = [start] + waypoints + [end]
+        guard stops.count >= 2 else { return stops }
+
+        var combined: [CLLocationCoordinate2D] = []
+        for (index, pair) in zip(stops, stops.dropFirst()).enumerated() {
+            let segment = try await roadRoute(from: pair.0, to: pair.1, mode: mode)
+            if index == 0 {
+                combined.append(contentsOf: segment)
+            } else {
+                combined.append(contentsOf: segment.dropFirst())
+            }
+        }
+        return combined
+    }
+
+'''
+        rb = rb.replace(marker, overload + marker, 1)
+        ROUTE_BUILDER.write_text(rb, encoding="utf-8")
+
+if ROUTE_SHEET.exists():
+    route_sheet = ROUTE_SHEET.read_text(encoding="utf-8")
+    replacement = r'''import CoreLocation
+import SwiftUI
+
+struct RoutePlannerSheet: View {
+    @Binding var start: CLLocationCoordinate2D?
+    @Binding var end: CLLocationCoordinate2D?
+    @Binding var waypoints: [CLLocationCoordinate2D]
+    @Binding var isRouting: Bool
+
+    var onBuild: () -> Void
+    var onPlay: () -> Void
+    var onImportGPX: () -> Void
+    var onExportGPX: () -> Void
+    var onUseDrawn: () -> Void
+    var onRedirect: () -> Void
+
+    @EnvironmentObject private var session: SpoofSession
+    @EnvironmentObject private var pairing: PairingStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("道路路線") {
+                    Button {
+                        start = session.simulated ?? session.pin
+                    } label: {
+                        Label("使用目前模擬位置／圖釘作為起點", systemImage: "location.fill")
+                    }
+
+                    Button {
+                        end = session.pin
+                    } label: {
+                        Label("使用目前圖釘作為終點", systemImage: "mappin")
+                    }
+                    .disabled(session.pin == nil)
+
+                    LabeledContent("起點") {
+                        Text(coordText(start))
+                            .font(.caption.monospaced())
+                            .lineLimit(1)
+                    }
+
+                    LabeledContent("終點") {
+                        Text(coordText(end))
+                            .font(.caption.monospaced())
+                            .lineLimit(1)
+                    }
+
+                    Button {
+                        onBuild()
+                    } label: {
+                        if isRouting {
+                            HStack {
+                                ProgressView()
+                                Text("正在規劃路線…")
+                            }
+                        } else {
+                            Label("建立道路／步道路線", systemImage: "road.lanes")
+                        }
+                    }
+                    .disabled(isRouting || start == nil || end == nil)
+                }
+
+                Section("途經點") {
+                    Button {
+                        guard let pin = session.pin else {
+                            session.lastError = "請先在地圖放置圖釘。"
+                            return
+                        }
+                        waypoints.append(pin)
+                    } label: {
+                        Label("將目前圖釘加入途經點", systemImage: "plus.circle")
+                    }
+                    .disabled(session.pin == nil)
+
+                    if waypoints.isEmpty {
+                        Text("尚未設定途經點")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(waypoints.enumerated()), id: \.offset) { index, point in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("途經 (index + 1)")
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(coordText(point))
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button(role: .destructive) {
+                                    waypoints.remove(at: index)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+
+                        Button("清除全部途經點", role: .destructive) {
+                            waypoints.removeAll()
+                        }
+                    }
+                }
+
+                Section("路線播放") {
+                    if session.routeIsActive || session.routePaused {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(session.routePaused ? "已暫停" : "路線播放中")
+                                    .font(.subheadline.weight(.bold))
+                                Spacer()
+                                Text(String(format: "%.0f%%", session.routeProgress * 100))
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            ProgressView(value: session.routeProgress)
+                        }
+
+                        HStack(spacing: 8) {
+                            Button {
+                                session.toggleRoutePauseResume(pairing: pairing)
+                            } label: {
+                                Label(
+                                    session.routePaused ? "繼續" : "暫停",
+                                    systemImage: session.routePaused ? "play.fill" : "pause.fill"
+                                )
+                            }
+                            .buttonStyle(.borderedProminent)
+
+                            Button {
+                                session.reverseRoute(pairing: pairing)
+                            } label: {
+                                Label("反向", systemImage: "arrow.uturn.backward")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        HStack(spacing: 8) {
+                            Button(role: .destructive) {
+                                session.stopRoutePlayback()
+                            } label: {
+                                Label("停止路線", systemImage: "stop.fill")
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                onRedirect()
+                            } label: {
+                                Label("重新導向", systemImage: "arrow.triangle.turn.up.right.diamond")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(end == nil)
+                        }
+                    } else {
+                        Button {
+                            onPlay()
+                        } label: {
+                            Label("開始路線模擬", systemImage: "play.fill")
+                        }
+                        .disabled(isRouting)
+                    }
+
+                    Button {
+                        onUseDrawn()
+                    } label: {
+                        Label("使用地圖繪製的路徑", systemImage: "pencil.tip")
+                    }
+
+                    Button(action: onImportGPX) {
+                        Label("匯入 GPX", systemImage: "square.and.arrow.down")
+                    }
+
+                    Button(action: onExportGPX) {
+                        Label("匯出 GPX", systemImage: "square.and.arrow.up")
+                    }
+                }
+
+                Section("目前路線狀態") {
+                    LabeledContent(
+                        "模擬狀態",
+                        value: session.isSpoofing ? "模擬定位中" : "未模擬定位"
+                    )
+                    if session.routeIsActive {
+                        LabeledContent(
+                            "播放進度",
+                            value: String(format: "%.0f%%", session.routeProgress * 100)
+                        )
+                    } else if session.routePaused {
+                        LabeledContent("播放狀態", value: "已暫停")
+                    }
+                }
+
+                Section {
+                    Text("路線可使用道路／步道規劃、手動繪製或 GPX。播放時可暫停、繼續、反向或重新導向；途經點會依序連接，最後一點為固定終點。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("路線")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func coordText(_ c: CLLocationCoordinate2D?) -> String {
+        guard let c else { return "—" }
+        return String(format: "%.5f, %.5f", c.latitude, c.longitude)
+    }
+
+    private func coordText(_ c: CLLocationCoordinate2D) -> String {
+        String(format: "%.5f, %.5f", c.latitude, c.longitude)
+    }
+}
+'''
+    ROUTE_SHEET.write_text(replacement + "\n", encoding="utf-8")
+
+if MAP_HOME.exists():
+    mh = MAP_HOME.read_text(encoding="utf-8")
+
+    if "routeWaypoints" not in mh:
+        mh = mh.replace(
+            """    @State private var routeEnd: CLLocationCoordinate2D?\n""",
+            """    @State private var routeEnd: CLLocationCoordinate2D?\n    @State private var routeWaypoints: [CLLocationCoordinate2D] = []\n""",
+            1
+        )
+
+    old_sheet = """            RoutePlannerSheet(
+                start: $routeStart,
+                end: $routeEnd,
+                isRouting: $isRouting,
+                onBuild: buildRoadRoute,
+                onPlay: playRoute,
+                onImportGPX: { showGPXImporter = true },
+                onExportGPX: exportGPX,
+                onUseDrawn: {
+                    routeCoords = RouteBuilder.sample(coordinates: drawnPath, every: 10)
+                    drawnPath.removeAll()
+                    drawMode = false
+                }
+            )"""
+    new_sheet = """            RoutePlannerSheet(
+                start: $routeStart,
+                end: $routeEnd,
+                waypoints: $routeWaypoints,
+                isRouting: $isRouting,
+                onBuild: buildRoadRoute,
+                onPlay: playRoute,
+                onImportGPX: { showGPXImporter = true },
+                onExportGPX: exportGPX,
+                onUseDrawn: {
+                    routeCoords = RouteBuilder.sample(coordinates: drawnPath, every: 10)
+                    routeWaypoints.removeAll()
+                    drawnPath.removeAll()
+                    drawMode = false
+                },
+                onRedirect: redirectRoute
+            )
+            .environmentObject(session)
+            .environmentObject(pairing)"""
+    if old_sheet in mh:
+        mh = mh.replace(old_sheet, new_sheet, 1)
+
+    old_build = """                let coords = try await RouteBuilder.roadRoute(from: start, to: end, mode: session.travelMode)"""
+    new_build = """                let coords = try await RouteBuilder.roadRoute(
+                    from: start,
+                    to: end,
+                    via: routeWaypoints,
+                    mode: session.travelMode
+                )"""
+    if old_build in mh:
+        mh = mh.replace(old_build, new_build, 1)
+
+    route_marker = """    private func playRoute() {"""
+    redirect_method = r'''    private func redirectRoute() {
+        guard let destination = routeEnd,
+              let current = session.simulated ?? session.pin ?? session.realCoordinate else {
+            session.lastError = "請先選擇新的終點。"
+            return
+        }
+
+        isRouting = true
+        Task {
+            do {
+                let coords = try await RouteBuilder.roadRoute(
+                    from: current,
+                    to: destination,
+                    via: routeWaypoints,
+                    mode: session.travelMode
+                )
+                await MainActor.run {
+                    routeCoords = coords
+                    isRouting = false
+                    session.redirectRoute(coords, pairing: pairing)
+                }
+            } catch {
+                await MainActor.run {
+                    isRouting = false
+                    session.lastError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+'''
+    if route_marker in mh and "private func redirectRoute()" not in mh:
+        mh = mh.replace(route_marker, redirect_method + route_marker, 1)
+
+    MAP_HOME.write_text(mh, encoding="utf-8")
 # DPort 6.9.0: keep the selected location pin visible during and after spoofing.
 if MAP_HOME.exists():
     mh = MAP_HOME.read_text(encoding="utf-8")
