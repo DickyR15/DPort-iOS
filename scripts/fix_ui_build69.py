@@ -1,70 +1,5 @@
 # DPort Nearby Places + Map Drawing: keep both controls independent.
 
-# DPort iOS performance hardening:
-# - make CLLocationManager startup idempotent
-# - do not recreate resend/health timers on every 250 ms joystick tick
-# - keep recents bounded to 10 entries
-if SPOOF_SESSION.exists():
-    ss = SPOOF_SESSION.read_text(encoding="utf-8")
-
-    bg = ROOT / "Locus/Engine/BackgroundKeepAlive.swift"
-    if bg.exists():
-        bs = bg.read_text(encoding="utf-8")
-        if "private var isRunning = false" not in bs:
-            bs = bs.replace(
-                "    private(set) var lastKnownCoordinate: CLLocationCoordinate2D?\n",
-                "    private(set) var lastKnownCoordinate: CLLocationCoordinate2D?\n    private var isRunning = false\n",
-                1,
-            )
-            bs = bs.replace(
-                """    func start() {
-        manager.requestAlwaysAuthorization()
-        manager.startUpdatingLocation()
-    }""",
-                """    func start() {
-        guard !isRunning else { return }
-        isRunning = true
-        manager.requestAlwaysAuthorization()
-        manager.startUpdatingLocation()
-    }""",
-                1,
-            )
-            bs = bs.replace(
-                """    func stop() {
-        manager.stopUpdatingLocation()
-    }""",
-                """    func stop() {
-        guard isRunning else { return }
-        isRunning = false
-        manager.stopUpdatingLocation()
-    }""",
-                1,
-            )
-        bg.write_text(bs, encoding="utf-8")
-
-    ss = ss.replace(
-        """    private func startResend(pairing: PairingStore) {
-        resendTimer?.invalidate()""",
-        """    private func startResend(pairing: PairingStore) {
-        guard resendTimer == nil else { return }
-        resendTimer?.invalidate()""",
-        1,
-    )
-    ss = ss.replace(
-        """    private func startHealth(pairing: PairingStore) {
-        healthTimer?.invalidate()""",
-        """    private func startHealth(pairing: PairingStore) {
-        guard healthTimer == nil else { return }
-        healthTimer?.invalidate()""",
-        1,
-    )
-    ss = ss.replace(
-        "        if recents.count > 20 { recents = Array(recents.prefix(20)) }",
-        "        if recents.count > 10 { recents = Array(recents.prefix(10)) }",
-        1,
-    )
-    SPOOF_SESSION.write_text(ss, encoding="utf-8")
-
 #!/usr/bin/env python3
 from pathlib import Path
 import re
@@ -778,6 +713,71 @@ private struct NearbyPlacesSheet: View {
         mh = mh.replace(ext_marker, nearby_types + ext_marker, 1)
 
     MAP_HOME.write_text(mh, encoding="utf-8")
+
+# DPort iOS performance hardening:
+# - make CLLocationManager startup idempotent
+# - do not recreate resend/health timers on every 250 ms joystick tick
+# - keep recents bounded to 10 entries
+if SPOOF_SESSION.exists():
+    ss = SPOOF_SESSION.read_text(encoding="utf-8")
+
+    bg = ROOT / "Locus/Engine/BackgroundKeepAlive.swift"
+    if bg.exists():
+        bs = bg.read_text(encoding="utf-8")
+        if "private var isRunning = false" not in bs:
+            bs = bs.replace(
+                "    private(set) var lastKnownCoordinate: CLLocationCoordinate2D?\n",
+                "    private(set) var lastKnownCoordinate: CLLocationCoordinate2D?\n    private var isRunning = false\n",
+                1,
+            )
+            bs = bs.replace(
+                """    func start() {
+        manager.requestAlwaysAuthorization()
+        manager.startUpdatingLocation()
+    }""",
+                """    func start() {
+        guard !isRunning else { return }
+        isRunning = true
+        manager.requestAlwaysAuthorization()
+        manager.startUpdatingLocation()
+    }""",
+                1,
+            )
+            bs = bs.replace(
+                """    func stop() {
+        manager.stopUpdatingLocation()
+    }""",
+                """    func stop() {
+        guard isRunning else { return }
+        isRunning = false
+        manager.stopUpdatingLocation()
+    }""",
+                1,
+            )
+        bg.write_text(bs, encoding="utf-8")
+
+    ss = ss.replace(
+        """    private func startResend(pairing: PairingStore) {
+        resendTimer?.invalidate()""",
+        """    private func startResend(pairing: PairingStore) {
+        guard resendTimer == nil else { return }
+        resendTimer?.invalidate()""",
+        1,
+    )
+    ss = ss.replace(
+        """    private func startHealth(pairing: PairingStore) {
+        healthTimer?.invalidate()""",
+        """    private func startHealth(pairing: PairingStore) {
+        guard healthTimer == nil else { return }
+        healthTimer?.invalidate()""",
+        1,
+    )
+    ss = ss.replace(
+        "        if recents.count > 20 { recents = Array(recents.prefix(20)) }",
+        "        if recents.count > 10 { recents = Array(recents.prefix(10)) }",
+        1,
+    )
+    SPOOF_SESSION.write_text(ss, encoding="utf-8")
 
 # DPort 6.9.0: keep the selected location pin visible during and after spoofing.
 if MAP_HOME.exists():
