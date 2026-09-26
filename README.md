@@ -39,7 +39,7 @@ DPort iOS 的 GitHub Actions 可建立未簽署 IPA。
 
 範例檔名：
 
-`DPort-6.9.2-Build39-TW.ipa`
+`DPort-6.9.0-TW.ipa`
 
 此 IPA **不包含 Apple 簽章**。
 
@@ -74,7 +74,7 @@ DPort iOS 本身不提供、保證或繞過 Apple 的簽署機制。
 
 ## 📋 系統需求
 
-- iOS / iPadOS 15 或更新版本
+- iOS / iPadOS 18 或更新版本
 - 相容的 iPhone / iPad 裝置
 - 依功能需求啟用 Developer Mode
 - 依功能需求完成裝置配對
@@ -122,13 +122,13 @@ DPort iOS 不主張擁有 Locus 原始程式碼、其貢獻者創作內容或其
 |---|---|
 | App 名稱 | DPort |
 | Bundle Identifier | `com.dicky.dport` |
-| Marketing Version | 6.9.2 |
-| Build Number | 39 |
+| Marketing Version | 6.9.0 |
+| Build Number | 1 |
 | 介面語言 | 繁體中文（台灣） |
 | 品牌 | Dicky / DPort |
 | 平台 | iOS / iPadOS |
 
-版本與 Build Number 會隨正式發行內容更新，以上資訊以對應 Release / Build 實際內容為準。
+`6.9.0` Release 對應正式版本號 `6.9.0`，Bundle Build Number 為 `1`。
 
 ---
 
