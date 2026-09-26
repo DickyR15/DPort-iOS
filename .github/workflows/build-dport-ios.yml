@@ -29,9 +29,15 @@ jobs:
       - name: Fetch upstream Locus source
         run: |
           set -euo pipefail
-          git clone --depth 1 https://github.com/ChrisMack32/Locus.git upstream-locus
+          LocusRef="83c8fb324983728e8f44759cfd834dc637ee38b5"
+          git clone --filter=blob:none --no-checkout https://github.com/ChrisMack32/Locus.git upstream-locus
+          git -C upstream-locus checkout --detach "$LocusRef"
+          test "$(git -C upstream-locus rev-parse HEAD)" = "$LocusRef"
           mkdir -p src-build
           rsync -a --exclude='.git' upstream-locus/ src-build/
+
+      - name: Validate build scripts
+        run: python3 -m compileall -q scripts
 
       - name: Apply DPort branding and localization
         working-directory: src-build
@@ -95,6 +101,16 @@ jobs:
           echo "---- patched MapHomeView 255-305 ----"
           nl -ba Locus/Features/Map/MapHomeView.swift | sed -n '255,305p'
           echo "--------------------------------------"
+      - name: Validate generated DPort metadata
+        working-directory: src-build
+        run: |
+          set -euo pipefail
+          test -f Locus/Resources/Info.plist
+          test -f Locus/Resources/zh-Hant.lproj/Localizable.strings || true
+          echo "Pinned Locus: $(git -C ../upstream-locus rev-parse HEAD)"
+          grep -q 'MARKETING_VERSION: "6.9.0"' project.yml
+          grep -q 'CURRENT_PROJECT_VERSION: "1"' project.yml
+
       - name: Generate Xcode project
         working-directory: src-build
         run: xcodegen generate
