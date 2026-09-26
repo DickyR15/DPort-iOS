@@ -714,6 +714,24 @@ private struct NearbyPlacesSheet: View {
 
     MAP_HOME.write_text(mh, encoding="utf-8")
 
+
+# DPort iOS thread-safety hardening: the health timer reads LocationEngine
+# session state on MainActor while the actual native handles are guarded by
+# LocationEngine's serial queue. Synchronize the read with that queue.
+if ROOT.joinpath("Locus/Engine/LocationEngine.swift").exists():
+    le = ROOT / "Locus/Engine/LocationEngine.swift"
+    les = le.read_text(encoding="utf-8")
+    les = les.replace(
+        """    static var isSessionActive: Bool { locationSimulation != nil }""",
+        """    static var isSessionActive: Bool {
+        queue.sync {
+            locationSimulation != nil
+        }
+    }""",
+        1,
+    )
+    le.write_text(les, encoding="utf-8")
+
 # DPort iOS performance hardening:
 # - make CLLocationManager startup idempotent
 # - do not recreate resend/health timers on every 250 ms joystick tick
