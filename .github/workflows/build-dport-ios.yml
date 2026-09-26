@@ -89,27 +89,17 @@ jobs:
           rsvg-convert -w 1024 -h 1024 branding/DPort-AppIcon.svg -o src-build/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           test -s src-build/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
-      - name: Debug map pin source
-        working-directory: src-build
-        run: |
-          echo "---- MapHomeView pin/map source ----"
-          nl -ba Locus/Features/Map/MapHomeView.swift | sed -n '35,115p'
-          echo "-------------------------------------"
-      - name: Debug patched MapHomeView
-        working-directory: src-build
-        run: |
-          echo "---- patched MapHomeView 255-305 ----"
-          nl -ba Locus/Features/Map/MapHomeView.swift | sed -n '255,305p'
-          echo "--------------------------------------"
-      - name: Validate generated DPort metadata
+      - name: Audit DPort source hardening
         working-directory: src-build
         run: |
           set -euo pipefail
-          test -f Locus/Resources/Info.plist
-          test -f Locus/Resources/zh-Hant.lproj/Localizable.strings || true
-          echo "Pinned Locus: $(git -C ../upstream-locus rev-parse HEAD)"
-          grep -q 'MARKETING_VERSION: "6.9.0"' project.yml
-          grep -q 'CURRENT_PROJECT_VERSION: "1"' project.yml
+          grep -q 'guard resendTimer == nil else' Locus/Engine/SpoofSession.swift
+          grep -q 'guard healthTimer == nil else' Locus/Engine/SpoofSession.swift
+          grep -q 'private var isRunning = false' Locus/Engine/BackgroundKeepAlive.swift
+          grep -q 'queue.sync {' Locus/Engine/LocationEngine.swift
+          grep -q 'showNearbyPlaces = true' Locus/Features/Map/MapHomeView.swift
+          grep -q 'drawMode.toggle()' Locus/Features/Map/MapHomeView.swift
+          echo "DPort source hardening audit: PASS"
 
       - name: Generate Xcode project
         working-directory: src-build
@@ -136,6 +126,27 @@ jobs:
           test -s DPort-6.9.0-TW.ipa
           test -s DPort-6.9.0-TW.sha256
           ls -lh DPort-6.9.0-TW.ipa DPort-6.9.0-TW.sha256
+
+      - name: Validate packaged IPA metadata
+        working-directory: src-build
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/dport-ipa-check
+          mkdir -p /tmp/dport-ipa-check
+          unzip -q DPort-6.9.0-TW.ipa -d /tmp/dport-ipa-check
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          p = Path("/tmp/dport-ipa-check/Payload/DPort.app/Info.plist")
+          d = plistlib.loads(p.read_bytes())
+          assert d["CFBundleIdentifier"] == "com.dicky.dport"
+          assert d["CFBundleDisplayName"] == "DPort"
+          assert d["CFBundleShortVersionString"] == "6.9.0"
+          assert str(d["CFBundleVersion"]) == "1"
+          assert str(d["MinimumOSVersion"]) == "18.0"
+          assert d["LSRequiresIPhoneOS"] is True
+          print("DPort packaged metadata audit: PASS")
+          PY
 
       - name: Upload DPort 6.9.0
         uses: actions/upload-artifact@v7
