@@ -99,6 +99,12 @@ jobs:
           grep -q 'queue.sync {' Locus/Engine/LocationEngine.swift
           grep -q 'showNearbyPlaces = true' Locus/Features/Map/MapHomeView.swift
           grep -q 'drawMode.toggle()' Locus/Features/Map/MapHomeView.swift
+          grep -q 'routeIsActive' Locus/Engine/SpoofSession.swift
+          grep -q 'func pauseRoute()' Locus/Engine/SpoofSession.swift
+          grep -q 'func reverseRoute' Locus/Engine/SpoofSession.swift
+          grep -q 'func redirectRoute' Locus/Engine/SpoofSession.swift
+          grep -q 'via waypoints' Locus/Engine/RouteBuilder.swift
+          grep -q 'RoutePlannerSheet' Locus/Features/Map/MapHomeView.swift
           echo "DPort source hardening audit: PASS"
 
       - name: Generate Xcode project
