@@ -127,13 +127,13 @@ DPort iOS 不主張擁有 Locus 原始程式碼、其貢獻者創作內容或其
 |---|---|
 | App 名稱 | DPort |
 | Bundle Identifier | `com.dicky.dport` |
-| Marketing Version | 6.9.0 |
+| Marketing Version | 依正式 Release Tag |
 | Build Number | 1 |
 | 介面語言 | 繁體中文（台灣） |
 | 品牌 | Dicky / DPort |
 | 平台 | iOS / iPadOS |
 
-`6.9.0` Release 對應正式版本號 `6.9.0`，Bundle Build Number 為 `1`。
+正式版本號以 GitHub Release / Tag 為準。每個正式版本的 Source、建置產物與 Release 應以同一個 Git Tag 對應。
 
 ---
 
