@@ -1,19 +1,44 @@
 # DPort iOS Third-Party Notices
 
-DPort iOS is based on the MIT-licensed Locus project.
+DPort iOS contains and modifies code from the following open-source project.
 
-## Upstream project
+## 1. Upstream project: Locus
 
 - Project: Locus
-- Upstream: https://github.com/ChrisMack32/Locus
+- Repository: https://github.com/ChrisMack32/Locus
 - License: MIT
-- Copyright: © 2026 Locus contributors
+- Upstream attribution: Locus contributors
+- DPort relationship: DPort iOS is a modified derivative of the Locus codebase.
 
-DPort iOS retains the upstream MIT license and attribution while adding DPort branding, Traditional Chinese (Taiwan) localization, and DPort-specific build/packaging changes.
+DPort-specific changes include branding, app identity, Traditional Chinese (Taiwan) localization,
+UI adjustments, and DPort-specific build/packaging scripts.
 
-## Vendored component
+Locus-derived code remains subject to the original copyright notices and MIT license.
 
-Locus includes the MIT-licensed `Vendor/idevice` component. Its original license and attribution remain applicable.
+## 2. Included component: Vendor/idevice
 
-DPort iOS source code:
-https://github.com/DickyR15/DPort-iOS
+Locus includes the MIT-licensed Vendor/idevice component. Its original copyright, license,
+and attribution remain applicable.
+
+## 3. Apple SDKs and system frameworks
+
+DPort iOS may use Apple SDKs and system frameworks. Those SDKs and frameworks are not licensed
+to DPort under this repository's MIT license and remain subject to Apple's applicable developer
+terms and documentation.
+
+## 4. Trademarks
+
+Apple, iPhone, iPad, iOS, iPadOS and related marks are trademarks or other protected marks of
+Apple Inc. DPort is an independent project and does not claim Apple endorsement, sponsorship,
+certification, or affiliation.
+
+The MIT software license does not grant trademark rights in DPort, Dicky, Locus, Apple, or
+other third-party marks.
+
+## 5. Distribution
+
+When distributing DPort iOS or an IPA containing third-party code, retain the copyright and
+license notices required by the applicable licenses.
+
+See LICENSE and this file together with the upstream Locus repository for the authoritative
+third-party licensing information.
