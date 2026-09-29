@@ -137,68 +137,34 @@ DPort iOS 不主張擁有 Locus 原始程式碼、其貢獻者創作內容或其
 
 ---
 
-## 📜 授權
+## 📜 授權與上游來源
 
-### Locus / 上游程式碼
+DPort iOS 是基於開源專案 **Locus** 修改與再開發的專案。Locus 官方 Repository 目前標示為 MIT License。citeturn617287search0
 
-DPort iOS 包含來自 Locus 的程式碼。
-
-Locus 以 MIT License 授權，相關程式碼仍受原 MIT License 約束。
-
-MIT License 允許在符合授權與著作權聲明要求的情況下使用、複製、修改、合併、發布、再授權及販售相關程式碼。
-
-但必須保留原始著作權聲明與 MIT License 授權聲明。
-
-完整 MIT License：
-
-[`LICENSE`](LICENSE)
-
----
-
-### DPort 原創修改內容
-
-除另有明確標示外，本 Repository 中由 **DickyR15 / DPort** 新增或創作的品牌、UI、繁體中文（台灣）在地化、建置／封裝腳本及其他原創修改，其著作權歸相關原作者所有。
-
-DPort 原創內容不得被誤認為是 Locus 原作者或其他第三方所創作。
-
-**DPort 對 Locus 原始程式碼的授權不作任何額外限制，也不取代 Locus 原本的 MIT License。**
-
----
-
-## 🔗 第三方元件與授權
-
-DPort iOS 除 Locus 外，也可能包含其他開源元件。
-
-### Locus
+### Locus 上游程式碼
 
 - Project: Locus
 - Repository: https://github.com/ChrisMack32/Locus
 - License: MIT
-- Copyright: © 2026 Locus contributors
+- Copyright: Locus contributors
 
-### Vendor/idevice
+Locus 原始程式碼、原始著作權聲明及 MIT 授權仍適用於 Locus-derived code。
 
-Locus 包含 MIT 授權的 `Vendor/idevice` 元件。
+### DPort 原創修改
 
-其原始著作權、授權與相關聲明仍然適用。
+本 Repository 中由 DickyR15 / DPort 新增的品牌、繁體中文（台灣）在地化、UI 調整、建置與封裝腳本，以及其他由 DPort 自行創作的內容，依 Repository 根目錄 LICENSE 所載 MIT License 授權，除非特定檔案或元件另有明確標示。
 
-完整第三方資訊請參考：
+### 第三方與 Apple SDK
 
-[- `THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+DPort iOS 也可能使用 Locus 所包含的 Vendor/idevice 元件，以及 Apple SDK / system frameworks。
 
-> 第三方套件或元件的實際授權、著作權與使用條件，以其原始 Repository、LICENSE、NOTICE 及隨元件提供的授權文件為準。
+第三方元件的著作權、授權與使用條件仍由各自權利人控制，不因 DPort README 或品牌名稱而改變。完整資訊請參考 THIRD_PARTY_NOTICES.md。
 
----
+### 商標
 
-## ⚖️ 商標與品牌聲明
+DPort 並非 Apple 官方產品，也不表示 Apple 背書、贊助、認證或官方合作。
 
-**DPort、Dicky、DPort iOS** 為 DPort 專案所使用的名稱與品牌識別。
-
-**Locus** 為其原作者／相關權利人所使用的專案名稱。
-
-**Apple、iPhone、iPad、iOS、iPadOS 及相關 Apple 商標**均屬 Apple Inc. 的商標或相關權利。
-
-本專案並非 Apple Inc. 官方產品，也未表示與 Apple Inc. 存在官方合作、背書或認證關係。
+Apple、iPhone、iPad、iOS、iPadOS 及相關名稱／商標屬其相關權利人所有。MIT License 不等同於授予任何第三方商標使用權。
 
 ---
 
@@ -253,10 +219,10 @@ https://github.com/DickyR15/DPort-iOS
 
 Repository 內提供：
 
-- [`LICENSE`](LICENSE)
-- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+- LICENSE — MIT License
+- THIRD_PARTY_NOTICES.md — 上游與第三方授權／歸屬資訊
 
-請在使用、修改或重新發布本專案前，同時閱讀以上文件。
+使用、修改或重新發布前，請同時閱讀以上文件及相關上游授權。
 
 ---
 
