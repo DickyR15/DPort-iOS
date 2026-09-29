@@ -219,10 +219,10 @@ https://github.com/DickyR15/DPort-iOS
 
 Repository 內提供：
 
-- LICENSE — MIT License
-- THIRD_PARTY_NOTICES.md — 上游與第三方授權／歸屬資訊
+- [`LICENSE`](LICENSE)
+- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 
-使用、修改或重新發布前，請同時閱讀以上文件及相關上游授權。
+本 Repository 的 MIT 授權不授予 Apple 或其他第三方商標權。
 
 ---
 
