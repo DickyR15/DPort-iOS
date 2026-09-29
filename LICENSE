@@ -1,7 +1,7 @@
 MIT License
 
 Copyright (c) 2026 Locus contributors
-Copyright (c) 2026 DickyR15 / DPort for DPort-original contributions in this repository.
+Copyright (c) 2026 DickyR15 / DPort for original DPort modifications
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -12,6 +12,14 @@ furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
+
+The above copyright notice and this permission notice apply to the Locus code
+and DPort original modifications covered by this MIT license. Third-party
+components retain their own original licenses and notices.
+
+DPort, Dicky, and project branding are not granted as trademark rights by this
+software license. Apple and other third-party trademarks remain the property
+of their respective owners.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
