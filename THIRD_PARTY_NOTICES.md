@@ -1,44 +1,68 @@
 # DPort iOS Third-Party Notices
 
-DPort iOS contains and modifies code from the following open-source project.
+This document records the principal upstream project and third-party components used by
+DPort iOS. Third-party software remains under its original copyright and license.
 
 ## 1. Upstream project: Locus
 
-- Project: Locus
-- Repository: https://github.com/ChrisMack32/Locus
+- Project: **Locus**
+- Upstream: https://github.com/ChrisMack32/Locus
+- License: **MIT**
+- Copyright: © 2026 Locus contributors
+
+DPort iOS is a modified version of Locus with DPort branding, Traditional Chinese (Taiwan)
+localization, UI adjustments, build/packaging changes and other project-specific changes.
+
+The Locus MIT license and original attribution remain applicable.
+
+## 2. Vendored component
+
+Locus includes:
+
+- `Vendor/idevice`
 - License: MIT
-- Upstream attribution: Locus contributors
-- DPort relationship: DPort iOS is a modified derivative of the Locus codebase.
 
-DPort-specific changes include branding, app identity, Traditional Chinese (Taiwan) localization,
-UI adjustments, and DPort-specific build/packaging scripts.
+The original copyright and license notices of this component remain applicable.
 
-Locus-derived code remains subject to the original copyright notices and MIT license.
+## 3. DPort original work
 
-## 2. Included component: Vendor/idevice
+Unless a file is explicitly identified as third-party content, original DPort additions and
+modifications in this repository are provided under the repository MIT license.
 
-Locus includes the MIT-licensed Vendor/idevice component. Its original copyright, license,
-and attribution remain applicable.
+This includes DPort-specific branding files, Traditional Chinese (Taiwan) localization,
+project documentation, build/packaging changes and original modifications made by DPort.
 
-## 3. Apple SDKs and system frameworks
+## 4. Apple trademarks
 
-DPort iOS may use Apple SDKs and system frameworks. Those SDKs and frameworks are not licensed
-to DPort under this repository's MIT license and remain subject to Apple's applicable developer
-terms and documentation.
+Apple, iPhone, iPad, iOS, iPadOS and related names/logos are trademarks of Apple Inc.
 
-## 4. Trademarks
+DPort iOS is not an Apple product and does not claim Apple affiliation, sponsorship or
+endorsement.
 
-Apple, iPhone, iPad, iOS, iPadOS and related marks are trademarks or other protected marks of
-Apple Inc. DPort is an independent project and does not claim Apple endorsement, sponsorship,
-certification, or affiliation.
+The MIT license does not grant any trademark rights.
 
-The MIT software license does not grant trademark rights in DPort, Dicky, Locus, Apple, or
-other third-party marks.
+## 5. License preservation
 
-## 5. Distribution
+When redistributing DPort iOS:
 
-When distributing DPort iOS or an IPA containing third-party code, retain the copyright and
-license notices required by the applicable licenses.
+1. Keep the Locus copyright and MIT license notice.
+2. Keep applicable third-party copyright and license notices.
+3. Do not represent Locus or its contributors as the authors of DPort-specific modifications.
+4. Do not remove third-party license notices from third-party components.
+5. Keep this document with release/source materials where appropriate.
 
-See LICENSE and this file together with the upstream Locus repository for the authoritative
-third-party licensing information.
+Where a third-party license conflicts with this summary, the original third-party license
+controls.
+
+## 6. Source and build information
+
+The DPort iOS repository provides the source and DPort-specific build/packaging scripts.
+Formal release tags should be treated as the source corresponding to that release.
+
+The repository's unsigned IPA builds do not themselves grant Apple signing rights or any
+Apple developer credential.
+
+## 7. Security
+
+Do not commit Apple Developer certificates, private keys, API keys, tokens, passwords or other
+confidential credentials to the public repository.
