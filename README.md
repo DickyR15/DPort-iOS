@@ -139,7 +139,7 @@ DPort iOS 不主張擁有 Locus 原始程式碼、其貢獻者創作內容或其
 
 ## 📜 授權與上游來源
 
-DPort iOS 是基於開源專案 **Locus** 修改與再開發的專案。Locus 官方 Repository 目前標示為 MIT License。citeturn617287search0
+DPort iOS 是基於開源專案 **Locus** 修改與再開發的專案。Locus 官方 Repository 目前標示為 MIT License。
 
 ### Locus 上游程式碼
 
